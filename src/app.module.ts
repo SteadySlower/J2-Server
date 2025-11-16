@@ -14,6 +14,7 @@ import { ProfileModule } from './profile/profile.module';
       validationSchema: Joi.object({
         SUPABASE_JWT_SECRET: Joi.string().required(),
         DATABASE_URL: Joi.string().required(),
+        DIRECT_URL: Joi.string().required(),
       }),
     }),
     AuthModule,
