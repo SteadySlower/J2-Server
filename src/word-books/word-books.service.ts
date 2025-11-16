@@ -1,18 +1,10 @@
-import {
-  Injectable,
-  OnModuleDestroy,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient } from '../../generated/prisma/client';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
 
 @Injectable()
-export class WordBooksService implements OnModuleDestroy {
-  private prisma: PrismaClient;
-
-  constructor() {
-    this.prisma = new PrismaClient();
-  }
+export class WordBooksService {
+  constructor(private prisma: PrismaService) {}
 
   async create(userId: string, createWordBookDto: CreateWordBookDto) {
     if (!createWordBookDto) {
@@ -28,9 +20,5 @@ export class WordBooksService implements OnModuleDestroy {
         showFront,
       },
     });
-  }
-
-  async onModuleDestroy() {
-    await this.prisma.$disconnect();
   }
 }
