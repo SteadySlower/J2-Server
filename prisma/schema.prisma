@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -13,4 +10,188 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+// Enums
+enum BookStatus {
+  studying
+  studied
+}
+
+enum WordStatus {
+  learning
+  learned
+}
+
+// Profile
+model Profile {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  name       String?
+  avatarUrl  String?  @map("avatar_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("profile")
+}
+
+// Word Books
+model WordBook {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  title     String
+  status    BookStatus @default(studying)
+  showFront Boolean    @default(true) @map("show_front")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  words Word[]
+
+  @@map("word_books")
+}
+
+// Words
+model Word {
+  id           String     @id @default(uuid()) @db.Uuid
+  bookId       String     @map("book_id") @db.Uuid
+  japanese     String
+  meaning      String
+  pronunciation String?
+  status       WordStatus @default(learning)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  book      WordBook      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  kanjis    WordKanji[]
+
+  @@map("words")
+}
+
+// Kanji Books
+model KanjiBook {
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  title     String
+  status    BookStatus @default(studying)
+  showFront Boolean    @default(true) @map("show_front")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  kanjis Kanji[]
+
+  @@map("kanji_books")
+}
+
+// Kanjis
+model Kanji {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  kanjiBookId  String?     @map("kanji_book_id") @db.Uuid
+  character    String
+  meaning      String
+  onReading    String?     @map("on_reading")
+  kunReading   String?     @map("kun_reading")
+  status       WordStatus  @default(learning)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  kanjiBook KanjiBook? @relation(fields: [kanjiBookId], references: [id], onDelete: SetNull)
+  words     WordKanji[]
+
+  @@unique([userId, character])
+  @@map("kanjis")
+}
+
+// Word-Kanji Relationship
+model WordKanji {
+  wordId  String @map("word_id") @db.Uuid
+  kanjiId String @map("kanji_id") @db.Uuid
+
+  word  Word  @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  kanji Kanji @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
+
+  @@id([wordId, kanjiId])
+  @@map("word_kanji")
+}
+
+// Dictionary
+model Dictionary {
+  id           String   @id @default(uuid()) @db.Uuid
+  japanese     String
+  meaning      String
+  pronunciation String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  pronunciationCaches AiCachePronunciationDictionary[]
+  japaneseCaches       AiCacheJapaneseDictionary[]
+  meaningCaches       AiCacheMeaningDictionary[]
+
+  @@map("dictionary")
+}
+
+// AI Cache - Pronunciation
+model AiCachePronunciation {
+  queryHash String   @id @map("query_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dictionaries AiCachePronunciationDictionary[]
+
+  @@map("ai_cache_pronunciation")
+}
+
+// AI Cache - Japanese
+model AiCacheJapanese {
+  queryHash String   @id @map("query_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dictionaries AiCacheJapaneseDictionary[]
+
+  @@map("ai_cache_japanese")
+}
+
+// AI Cache - Meaning
+model AiCacheMeaning {
+  queryHash String   @id @map("query_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  dictionaries AiCacheMeaningDictionary[]
+
+  @@map("ai_cache_meaning")
+}
+
+// AI Cache - Pronunciation Dictionary
+model AiCachePronunciationDictionary {
+  cacheQueryHash String     @map("cache_query_hash")
+  dictionaryId   String     @map("dictionary_id") @db.Uuid
+
+  cache      AiCachePronunciation @relation(fields: [cacheQueryHash], references: [queryHash], onDelete: Cascade)
+  dictionary Dictionary           @relation(fields: [dictionaryId], references: [id], onDelete: Cascade)
+
+  @@id([cacheQueryHash, dictionaryId])
+  @@map("ai_cache_pronunciation_dictionary")
+}
+
+// AI Cache - Japanese Dictionary
+model AiCacheJapaneseDictionary {
+  cacheQueryHash String     @map("cache_query_hash")
+  dictionaryId   String     @map("dictionary_id") @db.Uuid
+
+  cache      AiCacheJapanese @relation(fields: [cacheQueryHash], references: [queryHash], onDelete: Cascade)
+  dictionary Dictionary      @relation(fields: [dictionaryId], references: [id], onDelete: Cascade)
+
+  @@id([cacheQueryHash, dictionaryId])
+  @@map("ai_cache_japanese_dictionary")
+}
+
+// AI Cache - Meaning Dictionary
+model AiCacheMeaningDictionary {
+  cacheQueryHash String     @map("cache_query_hash")
+  dictionaryId   String     @map("dictionary_id") @db.Uuid
+
+  cache      AiCacheMeaning @relation(fields: [cacheQueryHash], references: [queryHash], onDelete: Cascade)
+  dictionary Dictionary     @relation(fields: [dictionaryId], references: [id], onDelete: Cascade)
+
+  @@id([cacheQueryHash, dictionaryId])
+  @@map("ai_cache_meaning_dictionary")
 }
