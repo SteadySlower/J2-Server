@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { CurrentUserPayload } from './decorators/current-user.decorator';
@@ -12,12 +13,12 @@ import { CurrentUserPayload } from './decorators/current-user.decorator';
 export class AuthGuard implements CanActivate {
   private readonly jwtSecret: string;
 
-  constructor() {
-    const secret = process.env.SUPABASE_JWT_SECRET;
-    if (!secret) {
+  constructor(private configService: ConfigService) {
+    this.jwtSecret =
+      this.configService.get<string>('SUPABASE_JWT_SECRET') || '';
+    if (!this.jwtSecret) {
       throw new Error('SUPABASE_JWT_SECRET environment variable is required');
     }
-    this.jwtSecret = secret;
   }
 
   canActivate(context: ExecutionContext): boolean {
