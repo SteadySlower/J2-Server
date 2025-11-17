@@ -1,8 +1,17 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
+import { UpdateWordBookDto } from './dto/update-word-book.dto';
 import { WordBooksService } from './word-books.service';
 
 @Controller('word-books')
@@ -26,5 +35,14 @@ export class WordBooksController {
     @Body() createWordBookDto: CreateWordBookDto,
   ) {
     return this.wordBooksService.create(user.id, createWordBookDto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() updateWordBookDto: UpdateWordBookDto,
+  ) {
+    return this.wordBooksService.update(id, user.id, updateWordBookDto);
   }
 }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
+import { UpdateWordBookDto } from './dto/update-word-book.dto';
 
 @Injectable()
 export class WordBooksService {
@@ -74,6 +75,45 @@ export class WordBooksService {
         title,
         showFront,
       },
+    });
+  }
+
+  async update(
+    id: string,
+    userId: string,
+    updateWordBookDto: UpdateWordBookDto,
+  ) {
+    const wordBook = await this.prisma.wordBook.findUnique({
+      where: { id },
+    });
+
+    if (!wordBook) {
+      throw new NotFoundException('단어장을 찾을 수 없습니다.');
+    }
+
+    if (wordBook.userId !== userId) {
+      throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
+    }
+
+    const updateData: {
+      title?: string;
+      status?: 'studying' | 'studied';
+      showFront?: boolean;
+    } = {};
+
+    if (updateWordBookDto.title !== undefined) {
+      updateData.title = updateWordBookDto.title;
+    }
+    if (updateWordBookDto.status !== undefined) {
+      updateData.status = updateWordBookDto.status;
+    }
+    if (updateWordBookDto.showFront !== undefined) {
+      updateData.showFront = updateWordBookDto.showFront;
+    }
+
+    return await this.prisma.wordBook.update({
+      where: { id },
+      data: updateData,
     });
   }
 }
