@@ -111,6 +111,10 @@ export class WordBooksService {
       updateData.showFront = updateWordBookDto.showFront;
     }
 
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('수정할 필드가 없습니다.');
+    }
+
     return await this.prisma.wordBook.update({
       where: { id },
       data: updateData,
