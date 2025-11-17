@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-const createWordBookSchema = z.object({
+export const createWordBookSchema = z.object({
   title: z.string().min(1, '제목은 필수입니다'),
   showFront: z.boolean().optional().default(true),
 });
