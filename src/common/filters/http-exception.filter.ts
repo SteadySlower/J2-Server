@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { ZodError } from 'zod';
 
 export interface ApiErrorResponse {
   ok: boolean;
@@ -26,7 +27,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
-      if (typeof exceptionResponse === 'string') {
+      // ZodValidationException 처리: ZodError에서 첫 번째 에러 메시지 추출
+      if (
+        'error' in exception &&
+        exception.error instanceof ZodError &&
+        exception.error.issues.length > 0
+      ) {
+        message = exception.error.issues[0].message;
+      } else if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (
         typeof exceptionResponse === 'object' &&
