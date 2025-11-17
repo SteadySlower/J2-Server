@@ -12,9 +12,31 @@ import { UpdateWordDto } from './dto/update-word.dto';
 export class WordsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * 단어를 조회하고 소유권을 확인하는 헬퍼 메서드
+   */
+  private async findWordWithOwnershipCheck(id: string, userId: string) {
+    const word = await this.prisma.word.findUnique({
+      where: { id },
+      include: {
+        book: true,
+      },
+    });
+
+    if (!word) {
+      throw new NotFoundException('단어를 찾을 수 없습니다.');
+    }
+
+    if (word.book.userId !== userId) {
+      throw new ForbiddenException('이 단어에 접근할 권한이 없습니다.');
+    }
+
+    return word;
+  }
+
   async create(userId: string, createWordDto: CreateWordDto) {
     if (!createWordDto) {
-      throw new BadRequestException('Request body is required');
+      throw new BadRequestException('요청 본문이 필요합니다.');
     }
 
     const { book_id, japanese, meaning, pronunciation } = createWordDto;
@@ -71,20 +93,7 @@ export class WordsService {
 
   async update(id: string, userId: string, updateWordDto: UpdateWordDto) {
     // 단어 존재 및 소유권 확인 (단어장을 통해)
-    const word = await this.prisma.word.findUnique({
-      where: { id },
-      include: {
-        book: true,
-      },
-    });
-
-    if (!word) {
-      throw new NotFoundException('단어를 찾을 수 없습니다.');
-    }
-
-    if (word.book.userId !== userId) {
-      throw new ForbiddenException('이 단어에 접근할 권한이 없습니다.');
-    }
+    const word = await this.findWordWithOwnershipCheck(id, userId);
 
     const updateData: {
       japanese?: string;
@@ -94,6 +103,22 @@ export class WordsService {
     } = {};
 
     if (updateWordDto.japanese !== undefined) {
+      // 자기 자신을 제외한 중복 체크
+      if (updateWordDto.japanese !== word.japanese) {
+        const existingWord = await this.prisma.word.findFirst({
+          where: {
+            bookId: word.bookId,
+            japanese: updateWordDto.japanese,
+            id: { not: id }, // 자기 자신 제외
+          },
+        });
+
+        if (existingWord) {
+          throw new BadRequestException(
+            '이 단어장에 이미 같은 일본어 단어가 존재합니다.',
+          );
+        }
+      }
       updateData.japanese = updateWordDto.japanese;
     }
     if (updateWordDto.meaning !== undefined) {
@@ -145,20 +170,7 @@ export class WordsService {
 
   async remove(id: string, userId: string) {
     // 단어 존재 및 소유권 확인 (단어장을 통해)
-    const word = await this.prisma.word.findUnique({
-      where: { id },
-      include: {
-        book: true,
-      },
-    });
-
-    if (!word) {
-      throw new NotFoundException('단어를 찾을 수 없습니다.');
-    }
-
-    if (word.book.userId !== userId) {
-      throw new ForbiddenException('이 단어에 접근할 권한이 없습니다.');
-    }
+    await this.findWordWithOwnershipCheck(id, userId);
 
     await this.prisma.word.delete({
       where: { id },
