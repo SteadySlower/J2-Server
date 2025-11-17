@@ -58,3 +58,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # docs
 /docs
 /generated/prisma
+
+# kanij_data
+/kanji_data
