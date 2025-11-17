@@ -116,4 +116,26 @@ export class WordBooksService {
       data: updateData,
     });
   }
+
+  async remove(id: string, userId: string) {
+    const wordBook = await this.prisma.wordBook.findUnique({
+      where: { id },
+    });
+
+    if (!wordBook) {
+      throw new NotFoundException('단어장을 찾을 수 없습니다.');
+    }
+
+    if (wordBook.userId !== userId) {
+      throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
+    }
+
+    await this.prisma.wordBook.delete({
+      where: { id },
+    });
+
+    return {
+      message: '단어장이 성공적으로 삭제되었습니다.',
+    };
+  }
 }

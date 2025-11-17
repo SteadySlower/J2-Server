@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -44,5 +45,10 @@ export class WordBooksController {
     @Body() updateWordBookDto: UpdateWordBookDto,
   ) {
     return this.wordBooksService.update(id, user.id, updateWordBookDto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.wordBooksService.remove(id, user.id);
   }
 }
