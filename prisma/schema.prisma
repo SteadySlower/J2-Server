@@ -132,6 +132,19 @@ model Dictionary {
   @@map("dictionary")
 }
 
+// Kanji Dictionary
+model KanjiDictionary {
+  id        String   @id @default(uuid()) @db.Uuid
+  character String   @unique
+  meaning   String
+  onReading String?  @map("on_reading")
+  kunReading String? @map("kun_reading")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("kanji_dictionary")
+}
+
 // AI Cache - Pronunciation
 model AiCachePronunciation {
   queryHash String   @id @map("query_hash")
