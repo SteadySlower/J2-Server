@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { WordBooksModule } from './word-books/word-books.module';
+import { WordsModule } from './words/words.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WordBooksModule } from './word-books/word-books.module';
     AuthModule,
     ProfileModule,
     WordBooksModule,
+    WordsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

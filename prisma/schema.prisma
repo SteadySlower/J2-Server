@@ -65,6 +65,7 @@ model Word {
   book      WordBook      @relation(fields: [bookId], references: [id], onDelete: Cascade)
   kanjis    WordKanji[]
 
+  @@unique([bookId, japanese])
   @@map("words")
 }
 
