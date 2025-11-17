@@ -27,12 +27,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
-      // ZodValidationException 처리: ZodError에서 첫 번째 에러 메시지 추출
       if (
         'error' in exception &&
         exception.error instanceof ZodError &&
         exception.error.issues.length > 0
       ) {
+        // ZodValidationException 처리: ZodError에서 첫 번째 에러 메시지 추출
         message = exception.error.issues[0].message;
       } else if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
@@ -41,7 +41,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
         'message' in exceptionResponse
       ) {
         const messages = exceptionResponse.message as string | string[];
-        message = Array.isArray(messages) ? messages[0] : messages;
+        const messageText = Array.isArray(messages) ? messages[0] : messages;
+
+        // JSON 파싱 에러 체크
+        if (
+          typeof messageText === 'string' &&
+          (messageText.includes('JSON') ||
+            messageText.includes('Unexpected end of JSON input'))
+        ) {
+          message = '잘못된 JSON 형식입니다.';
+        } else {
+          message = messageText;
+        }
       }
     } else if (exception instanceof Error) {
       message = exception.message;
