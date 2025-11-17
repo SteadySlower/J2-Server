@@ -6,6 +6,17 @@ import { CreateWordBookDto } from './dto/create-word-book.dto';
 export class WordBooksService {
   constructor(private prisma: PrismaService) {}
 
+  async findAll(userId: string) {
+    return await this.prisma.wordBook.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
   async create(userId: string, createWordBookDto: CreateWordBookDto) {
     if (!createWordBookDto) {
       throw new BadRequestException('Request body is required');

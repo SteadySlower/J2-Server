@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -9,6 +9,11 @@ import { WordBooksService } from './word-books.service';
 @UseGuards(AuthGuard)
 export class WordBooksController {
   constructor(private readonly wordBooksService: WordBooksService) {}
+
+  @Get()
+  findAll(@CurrentUser() user: CurrentUserPayload) {
+    return this.wordBooksService.findAll(user.id);
+  }
 
   @Post()
   create(
