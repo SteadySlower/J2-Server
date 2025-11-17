@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -13,6 +13,11 @@ export class WordBooksController {
   @Get()
   findAll(@CurrentUser() user: CurrentUserPayload) {
     return this.wordBooksService.findAll(user.id);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.wordBooksService.findOne(id, user.id);
   }
 
   @Post()
