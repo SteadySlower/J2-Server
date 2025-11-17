@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   UseGuards,
@@ -26,7 +27,10 @@ export class WordBooksController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.wordBooksService.findOne(id, user.id);
   }
 
@@ -40,7 +44,7 @@ export class WordBooksController {
 
   @Patch(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserPayload,
     @Body() updateWordBookDto: UpdateWordBookDto,
   ) {
@@ -48,7 +52,10 @@ export class WordBooksController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.wordBooksService.remove(id, user.id);
   }
 }
