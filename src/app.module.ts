@@ -4,6 +4,7 @@ import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { WordBooksModule } from './word-books/word-books.module';
 
@@ -18,6 +19,7 @@ import { WordBooksModule } from './word-books/word-books.module';
         DIRECT_URL: Joi.string().required(),
       }),
     }),
+    PrismaModule,
     AuthModule,
     ProfileModule,
     WordBooksModule,
