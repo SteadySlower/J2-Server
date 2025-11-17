@@ -142,4 +142,30 @@ export class WordsService {
       throw error;
     }
   }
+
+  async remove(id: string, userId: string) {
+    // 단어 존재 및 소유권 확인 (단어장을 통해)
+    const word = await this.prisma.word.findUnique({
+      where: { id },
+      include: {
+        book: true,
+      },
+    });
+
+    if (!word) {
+      throw new NotFoundException('단어를 찾을 수 없습니다.');
+    }
+
+    if (word.book.userId !== userId) {
+      throw new ForbiddenException('이 단어에 접근할 권한이 없습니다.');
+    }
+
+    await this.prisma.word.delete({
+      where: { id },
+    });
+
+    return {
+      message: '단어가 성공적으로 삭제되었습니다.',
+    };
+  }
 }

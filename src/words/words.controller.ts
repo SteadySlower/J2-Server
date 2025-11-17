@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -34,5 +35,13 @@ export class WordsController {
     @Body() updateWordDto: UpdateWordDto,
   ) {
     return this.wordsService.update(id, user.id, updateWordDto);
+  }
+
+  @Delete(':id')
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.wordsService.remove(id, user.id);
   }
 }
