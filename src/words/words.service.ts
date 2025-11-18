@@ -53,8 +53,6 @@ export class WordsService {
     );
 
     // 3. 존재하지 않는 한자들은 dictionary에서 검색
-    const newKanjiIds: string[] = [...existingKanjis.map((k) => k.id)];
-
     if (missingCharacters.length > 0) {
       const dictionaryResults = await Promise.all(
         missingCharacters.map((char) =>
@@ -76,90 +74,45 @@ export class WordsService {
         .filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (kanjisToCreate.length > 0) {
-        // 동시성 문제를 고려: createMany 전에 한 번 더 확인
-        const finalCheckKanjis = await tx.kanji.findMany({
-          where: {
+        // 없는 한자들 생성 (skipDuplicates로 중복 방지)
+        await tx.kanji.createManyAndReturn({
+          data: kanjisToCreate.map((kanjiData) => ({
             userId,
-            character: { in: kanjisToCreate.map((k) => k.character) },
-          },
+            character: kanjiData.character,
+            meaning: kanjiData.meaning,
+            onReading: kanjiData.onReading,
+            kunReading: kanjiData.kunReading,
+          })),
+          skipDuplicates: true,
         });
-
-        const finalExistingCharacters = new Set(
-          finalCheckKanjis.map((k) => k.character),
-        );
-
-        // 정말로 없는 한자들만 필터링
-        const trulyMissingKanjis = kanjisToCreate.filter(
-          (k) => !finalExistingCharacters.has(k.character),
-        );
-
-        // 새로 생성할 한자들에 대한 ID는 이미 조회한 것 사용
-        const finalKanjiIds = [...finalCheckKanjis.map((k) => k.id)];
-
-        // 정말로 없는 한자들만 생성
-        if (trulyMissingKanjis.length > 0) {
-          await tx.kanji.createMany({
-            data: trulyMissingKanjis.map((kanjiData) => ({
-              userId,
-              character: kanjiData.character,
-              meaning: kanjiData.meaning,
-              onReading: kanjiData.onReading,
-              kunReading: kanjiData.kunReading,
-            })),
-            skipDuplicates: true,
-          });
-
-          // 생성된 한자들 다시 조회하여 ID 가져오기
-          const newlyCreatedKanjis = await tx.kanji.findMany({
-            where: {
-              userId,
-              character: { in: trulyMissingKanjis.map((k) => k.character) },
-            },
-          });
-
-          finalKanjiIds.push(...newlyCreatedKanjis.map((k) => k.id));
-        }
-
-        newKanjiIds.push(...finalKanjiIds);
       }
     }
 
-    return newKanjiIds;
+    // 5. 모든 한자 ID를 한 번에 조회 (동시성 문제 해결)
+    const allKanjis = await tx.kanji.findMany({
+      where: {
+        userId,
+        character: { in: kanjiCharacters },
+      },
+    });
+
+    return allKanjis.map((k) => k.id);
   }
 
   /**
    * 트랜잭션 내에서 사용하는 createWordKanjiRelationships
    * @param tx Prisma 트랜잭션 클라이언트
    * @param wordId 단어 UUID
-   * @param kanjiIds 한자 UUID 배열
-   * @param userId 사용자 UUID (소유권 확인용)
+   * @param kanjiIds 한자 UUID 배열 (processKanjisFromJapaneseWithTx에서 반환된 것으로, 이미 사용자 소유권이 확인된 한자들)
    */
   private async createWordKanjiRelationshipsWithTx(
     tx: PrismaTransactionClient,
     wordId: string,
     kanjiIds: string[],
-    userId: string,
   ): Promise<void> {
     // kanjiIds가 비어있으면 아무것도 하지 않음
     if (!kanjiIds || kanjiIds.length === 0) {
       return;
-    }
-
-    // 각 Kanji 존재 및 소유권 확인
-    const kanjis = await tx.kanji.findMany({
-      where: {
-        id: { in: kanjiIds },
-      },
-    });
-
-    if (kanjis.length !== kanjiIds.length) {
-      throw new NotFoundException('일부 한자를 찾을 수 없습니다.');
-    }
-
-    // 모든 Kanji가 사용자 소유인지 확인
-    const invalidKanji = kanjis.find((kanji) => kanji.userId !== userId);
-    if (invalidKanji) {
-      throw new ForbiddenException('일부 한자에 접근할 권한이 없습니다.');
     }
 
     // 이미 존재하는 관계 확인 (중복 방지)
@@ -185,6 +138,8 @@ export class WordsService {
     }
 
     // 배치 생성
+    // 참고: kanjiIds는 processKanjisFromJapaneseWithTx에서 반환된 것으로,
+    // 이미 사용자 소유권이 확인된 한자들입니다.
     await tx.wordKanji.createMany({
       data: newKanjiIds.map((kanjiId) => ({
         wordId,
@@ -262,7 +217,6 @@ export class WordsService {
             tx,
             createdWord.id,
             kanjiIds,
-            userId,
           );
         }
 
@@ -354,25 +308,52 @@ export class WordsService {
 
         // japanese가 변경된 경우에만 관계 처리
         if (isJapaneseChanged && updateWordDto.japanese !== undefined) {
-          // 기존 word_kanji 관계 삭제
-          await tx.wordKanji.deleteMany({
-            where: { wordId: id },
-          });
-
-          // 새로운 japanese에서 한자 처리 및 관계 생성
-          const kanjiIds = await this.processKanjisFromJapaneseWithTx(
+          // 새로운 japanese에서 한자 처리
+          const newKanjiIds = await this.processKanjisFromJapaneseWithTx(
             tx,
             updateWordDto.japanese,
             userId,
           );
 
-          if (kanjiIds.length > 0) {
-            await this.createWordKanjiRelationshipsWithTx(
-              tx,
-              id,
-              kanjiIds,
-              userId,
-            );
+          // 기존 word_kanji 관계 조회
+          const existingRelations = await tx.wordKanji.findMany({
+            where: { wordId: id },
+          });
+
+          const existingKanjiIds = new Set(
+            existingRelations.map((rel) => rel.kanjiId),
+          );
+          const newKanjiIdsSet = new Set(newKanjiIds);
+
+          // 삭제할 관계: 기존에는 있지만 새로운 것에는 없음
+          const kanjiIdsToDelete = Array.from(existingKanjiIds).filter(
+            (kanjiId) => !newKanjiIdsSet.has(kanjiId),
+          );
+
+          // 추가할 관계: 새로운 것에는 있지만 기존에는 없음
+          const kanjiIdsToAdd = newKanjiIds.filter(
+            (kanjiId) => !existingKanjiIds.has(kanjiId),
+          );
+
+          // 삭제할 관계가 있으면 삭제
+          if (kanjiIdsToDelete.length > 0) {
+            await tx.wordKanji.deleteMany({
+              where: {
+                wordId: id,
+                kanjiId: { in: kanjiIdsToDelete },
+              },
+            });
+          }
+
+          // 추가할 관계가 있으면 생성
+          if (kanjiIdsToAdd.length > 0) {
+            await tx.wordKanji.createMany({
+              data: kanjiIdsToAdd.map((kanjiId) => ({
+                wordId: id,
+                kanjiId,
+              })),
+              skipDuplicates: true,
+            });
           }
         }
 
