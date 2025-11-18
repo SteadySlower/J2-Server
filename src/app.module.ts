@@ -10,6 +10,7 @@ import { WordBooksModule } from './word-books/word-books.module';
 import { WordsModule } from './words/words.module';
 import { KanjiBooksModule } from './kanji-books/kanji-books.module';
 import { KanjisModule } from './kanjis/kanjis.module';
+import { DictionaryModule } from './dictionary/dictionary.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { KanjisModule } from './kanjis/kanjis.module';
     WordsModule,
     KanjiBooksModule,
     KanjisModule,
+    DictionaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
