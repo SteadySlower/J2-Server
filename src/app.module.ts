@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { WordBooksModule } from './word-books/word-books.module';
 import { WordsModule } from './words/words.module';
+import { KanjiBooksModule } from './kanji-books/kanji-books.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { WordsModule } from './words/words.module';
     ProfileModule,
     WordBooksModule,
     WordsModule,
+    KanjiBooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
