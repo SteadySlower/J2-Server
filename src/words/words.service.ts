@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '../../generated/prisma/client';
+import { PrismaTransactionClient } from '../prisma/prisma.types';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { DictionaryService } from '../dictionary/dictionary.service';
@@ -26,10 +26,7 @@ export class WordsService {
    * @returns kanji ID 배열
    */
   private async processKanjisFromJapaneseWithTx(
-    tx: Omit<
-      Prisma.TransactionClient,
-      '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
-    >,
+    tx: PrismaTransactionClient,
     japanese: string,
     userId: string,
   ): Promise<string[]> {
@@ -138,18 +135,7 @@ export class WordsService {
    * @param userId 사용자 UUID (소유권 확인용)
    */
   private async createWordKanjiRelationshipsWithTx(
-    tx: Omit<
-      Prisma.TransactionClient,
-      '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
-    > & {
-      kanji: {
-        findMany: (args: any) => Promise<any[]>;
-      };
-      wordKanji: {
-        findMany: (args: any) => Promise<any[]>;
-        createMany: (args: any) => Promise<any>;
-      };
-    },
+    tx: PrismaTransactionClient,
     wordId: string,
     kanjiIds: string[],
     userId: string,
