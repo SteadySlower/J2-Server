@@ -181,20 +181,24 @@ export class KanjisService {
       throw new ForbiddenException('이 한자에 접근할 권한이 없습니다.');
     }
 
-    // word_kanji 관계 확인
-    const wordKanjiCount = await this.prisma.wordKanji.count({
-      where: { kanjiId: id },
-    });
-
-    if (wordKanjiCount > 0) {
-      throw new BadRequestException(
-        '이 한자를 사용하는 단어가 있어 삭제할 수 없습니다.',
-      );
+    try {
+      await this.prisma.kanji.delete({
+        where: { id },
+      });
+    } catch (error: unknown) {
+      // Prisma foreign key constraint violation (P2003)
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code: string }).code === 'P2003'
+      ) {
+        throw new BadRequestException(
+          '이 한자를 사용하는 단어가 있어 삭제할 수 없습니다.',
+        );
+      }
+      throw error;
     }
-
-    await this.prisma.kanji.delete({
-      where: { id },
-    });
 
     return {
       message: '한자가 성공적으로 삭제되었습니다.',

@@ -110,7 +110,7 @@ model WordKanji {
   kanjiId String @map("kanji_id") @db.Uuid
 
   word  Word  @relation(fields: [wordId], references: [id], onDelete: Cascade)
-  kanji Kanji @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
+  kanji Kanji @relation(fields: [kanjiId], references: [id], onDelete: Restrict)
 
   @@id([wordId, kanjiId])
   @@map("word_kanji")
