@@ -7,10 +7,98 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
+import { DictionaryService } from '../dictionary/dictionary.service';
+import { extractKanjiCharacters } from '../common/utils/japanese';
 
 @Injectable()
 export class WordsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private dictionaryService: DictionaryService,
+  ) {}
+
+  /**
+   * 일본어 텍스트에서 한자를 추출하고, 필요한 경우 kanjis에 추가한 후 kanji ID 배열을 반환
+   * @param japanese 일본어 텍스트
+   * @param userId 사용자 ID
+   * @returns kanji ID 배열
+   */
+  private async processKanjisFromJapanese(
+    japanese: string,
+    userId: string,
+  ): Promise<string[]> {
+    // 1. japanese에서 한자 추출
+    const kanjiCharacters = extractKanjiCharacters(japanese);
+
+    if (kanjiCharacters.length === 0) {
+      return [];
+    }
+
+    // 2. 사용자의 kanjis에 존재하는지 확인
+    const existingKanjis = await this.prisma.kanji.findMany({
+      where: {
+        userId,
+        character: { in: kanjiCharacters },
+      },
+    });
+
+    const existingCharacters = new Set(
+      existingKanjis.map((kanji) => kanji.character),
+    );
+    const missingCharacters = kanjiCharacters.filter(
+      (char) => !existingCharacters.has(char),
+    );
+
+    // 3. 존재하지 않는 한자들은 dictionary에서 검색
+    const newKanjiIds: string[] = [...existingKanjis.map((k) => k.id)];
+
+    if (missingCharacters.length > 0) {
+      const dictionaryResults = await Promise.all(
+        missingCharacters.map((char) =>
+          this.dictionaryService.findKanjiByCharacter(char),
+        ),
+      );
+
+      // 4. 검색 결과가 있는 한자들은 kanjis에 추가
+      const kanjisToCreate = dictionaryResults
+        .map((dict, index) => {
+          if (!dict) return null;
+          return {
+            character: missingCharacters[index],
+            meaning: dict.meaning,
+            onReading: dict.onReading,
+            kunReading: dict.kunReading,
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      if (kanjisToCreate.length > 0) {
+        // 동시성 문제를 고려하여 createMany 사용 (skipDuplicates)
+        await this.prisma.kanji.createMany({
+          data: kanjisToCreate.map((kanjiData) => ({
+            userId,
+            character: kanjiData.character,
+            meaning: kanjiData.meaning,
+            onReading: kanjiData.onReading,
+            kunReading: kanjiData.kunReading,
+          })),
+          skipDuplicates: true,
+        });
+
+        // 생성된 한자들 다시 조회하여 ID 가져오기
+        const createdKanjis = await this.prisma.kanji.findMany({
+          where: {
+            userId,
+            character: { in: kanjisToCreate.map((k) => k.character) },
+          },
+        });
+
+        newKanjiIds.push(...createdKanjis.map((k) => k.id));
+      }
+    }
+
+    return newKanjiIds;
+  }
 
   /**
    * 단어를 조회하고 소유권을 확인하는 헬퍼 메서드
@@ -54,6 +142,9 @@ export class WordsService {
       throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
     }
 
+    // 한자 처리 및 kanjis에 추가
+    const kanjiIds = await this.processKanjisFromJapanese(japanese, userId);
+
     // 단어 생성
     try {
       const word = await this.prisma.word.create({
@@ -64,6 +155,11 @@ export class WordsService {
           pronunciation: pronunciation || null,
         },
       });
+
+      // word_kanji 관계 생성
+      if (kanjiIds.length > 0) {
+        await this.createWordKanjiRelationships(word.id, kanjiIds, userId);
+      }
 
       return {
         id: word.id,
@@ -102,9 +198,13 @@ export class WordsService {
       status?: 'learning' | 'learned';
     } = {};
 
+    const isJapaneseChanged =
+      updateWordDto.japanese !== undefined &&
+      updateWordDto.japanese !== word.japanese;
+
     if (updateWordDto.japanese !== undefined) {
       // 자기 자신을 제외한 중복 체크
-      if (updateWordDto.japanese !== word.japanese) {
+      if (isJapaneseChanged) {
         const existingWord = await this.prisma.word.findFirst({
           where: {
             bookId: word.bookId,
@@ -136,10 +236,29 @@ export class WordsService {
     }
 
     try {
+      // word.update를 먼저 실행하여 원자성 보장
       const updatedWord = await this.prisma.word.update({
         where: { id },
         data: updateData,
       });
+
+      // japanese가 변경된 경우에만 관계 처리 (word.update 성공 후)
+      if (isJapaneseChanged && updateWordDto.japanese !== undefined) {
+        // 기존 word_kanji 관계 삭제
+        await this.prisma.wordKanji.deleteMany({
+          where: { wordId: id },
+        });
+
+        // 새로운 japanese에서 한자 처리 및 관계 생성
+        const kanjiIds = await this.processKanjisFromJapanese(
+          updateWordDto.japanese,
+          userId,
+        );
+
+        if (kanjiIds.length > 0) {
+          await this.createWordKanjiRelationships(id, kanjiIds, userId);
+        }
+      }
 
       return {
         id: updatedWord.id,
