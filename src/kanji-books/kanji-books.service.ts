@@ -65,7 +65,7 @@ export class KanjiBooksService {
 
   async create(userId: string, createKanjiBookDto: CreateKanjiBookDto) {
     if (!createKanjiBookDto) {
-      throw new BadRequestException('Request body is required');
+      throw new BadRequestException('요청 본문이 필요합니다.');
     }
 
     const { title, showFront = true } = createKanjiBookDto;

@@ -64,7 +64,7 @@ export class WordBooksService {
 
   async create(userId: string, createWordBookDto: CreateWordBookDto) {
     if (!createWordBookDto) {
-      throw new BadRequestException('Request body is required');
+      throw new BadRequestException('요청 본문이 필요합니다.');
     }
 
     const { title, showFront = true } = createWordBookDto;
