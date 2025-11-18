@@ -28,6 +28,13 @@ export class WordBooksService {
       where: { id },
       include: {
         words: {
+          include: {
+            kanjis: {
+              include: {
+                kanji: true, // ← 추가: kanji 정보 포함
+              },
+            },
+          },
           orderBy: {
             createdAt: 'desc',
           },
@@ -58,6 +65,14 @@ export class WordBooksService {
         status: word.status,
         created_at: word.createdAt.toISOString(),
         updated_at: word.updatedAt.toISOString(),
+        kanjis: word.kanjis.map((wordKanji) => ({
+          id: wordKanji.kanji.id,
+          character: wordKanji.kanji.character,
+          meaning: wordKanji.kanji.meaning,
+          on_reading: wordKanji.kanji.onReading,
+          kun_reading: wordKanji.kanji.kunReading,
+          status: wordKanji.kanji.status,
+        })),
       })),
     };
   }
