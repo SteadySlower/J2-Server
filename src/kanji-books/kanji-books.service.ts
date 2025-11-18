@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
+import { UpdateKanjiBookDto } from './dto/update-kanji-book.dto';
 
 @Injectable()
 export class KanjiBooksService {
@@ -75,6 +76,49 @@ export class KanjiBooksService {
         title,
         showFront,
       },
+    });
+  }
+
+  async update(
+    id: string,
+    userId: string,
+    updateKanjiBookDto: UpdateKanjiBookDto,
+  ) {
+    const kanjiBook = await this.prisma.kanjiBook.findUnique({
+      where: { id },
+    });
+
+    if (!kanjiBook) {
+      throw new NotFoundException('한자장을 찾을 수 없습니다.');
+    }
+
+    if (kanjiBook.userId !== userId) {
+      throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
+    }
+
+    const updateData: {
+      title?: string;
+      status?: 'studying' | 'studied';
+      showFront?: boolean;
+    } = {};
+
+    if (updateKanjiBookDto.title !== undefined) {
+      updateData.title = updateKanjiBookDto.title;
+    }
+    if (updateKanjiBookDto.status !== undefined) {
+      updateData.status = updateKanjiBookDto.status;
+    }
+    if (updateKanjiBookDto.showFront !== undefined) {
+      updateData.showFront = updateKanjiBookDto.showFront;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('수정할 필드가 없습니다.');
+    }
+
+    return await this.prisma.kanjiBook.update({
+      where: { id },
+      data: updateData,
     });
   }
 }
