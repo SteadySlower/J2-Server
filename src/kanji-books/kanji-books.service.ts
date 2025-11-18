@@ -6,6 +6,17 @@ import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
 export class KanjiBooksService {
   constructor(private prisma: PrismaService) {}
 
+  async findAll(userId: string) {
+    return await this.prisma.kanjiBook.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
   async create(userId: string, createKanjiBookDto: CreateKanjiBookDto) {
     if (!createKanjiBookDto) {
       throw new BadRequestException('Request body is required');

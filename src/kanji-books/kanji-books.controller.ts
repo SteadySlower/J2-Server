@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -9,6 +9,11 @@ import { KanjiBooksService } from './kanji-books.service';
 @UseGuards(AuthGuard)
 export class KanjiBooksController {
   constructor(private readonly kanjiBooksService: KanjiBooksService) {}
+
+  @Get()
+  findAll(@CurrentUser() user: CurrentUserPayload) {
+    return this.kanjiBooksService.findAll(user.id);
+  }
 
   @Post()
   create(
