@@ -166,4 +166,38 @@ export class KanjisService {
       updated_at: updatedKanji.updatedAt.toISOString(),
     };
   }
+
+  async remove(id: string, userId: string) {
+    // 한자 존재 및 소유권 확인
+    const kanji = await this.prisma.kanji.findUnique({
+      where: { id },
+    });
+
+    if (!kanji) {
+      throw new NotFoundException('한자를 찾을 수 없습니다.');
+    }
+
+    if (kanji.userId !== userId) {
+      throw new ForbiddenException('이 한자에 접근할 권한이 없습니다.');
+    }
+
+    // word_kanji 관계 확인
+    const wordKanjiCount = await this.prisma.wordKanji.count({
+      where: { kanjiId: id },
+    });
+
+    if (wordKanjiCount > 0) {
+      throw new BadRequestException(
+        '이 한자를 사용하는 단어가 있어 삭제할 수 없습니다.',
+      );
+    }
+
+    await this.prisma.kanji.delete({
+      where: { id },
+    });
+
+    return {
+      message: '한자가 성공적으로 삭제되었습니다.',
+    };
+  }
 }
