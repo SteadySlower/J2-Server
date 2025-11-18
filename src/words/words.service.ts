@@ -180,4 +180,86 @@ export class WordsService {
       message: '단어가 성공적으로 삭제되었습니다.',
     };
   }
+
+  /**
+   * Word와 Kanji 간의 관계를 생성
+   * @param wordId 단어 UUID
+   * @param kanjiIds 한자 UUID 배열
+   * @param userId 사용자 UUID (소유권 확인용)
+   */
+  async createWordKanjiRelationships(
+    wordId: string,
+    kanjiIds: string[],
+    userId: string,
+  ): Promise<void> {
+    // Word 존재 및 소유권 확인
+    await this.findWordWithOwnershipCheck(wordId, userId);
+
+    // kanjiIds가 비어있으면 아무것도 하지 않음
+    if (!kanjiIds || kanjiIds.length === 0) {
+      return;
+    }
+
+    // 각 Kanji 존재 및 소유권 확인
+    const kanjis = await this.prisma.kanji.findMany({
+      where: {
+        id: { in: kanjiIds },
+      },
+    });
+
+    if (kanjis.length !== kanjiIds.length) {
+      throw new NotFoundException('일부 한자를 찾을 수 없습니다.');
+    }
+
+    // 모든 Kanji가 사용자 소유인지 확인
+    const invalidKanji = kanjis.find((kanji) => kanji.userId !== userId);
+    if (invalidKanji) {
+      throw new ForbiddenException('일부 한자에 접근할 권한이 없습니다.');
+    }
+
+    // 이미 존재하는 관계 확인 (중복 방지)
+    const existingRelations = await this.prisma.wordKanji.findMany({
+      where: {
+        wordId,
+        kanjiId: { in: kanjiIds },
+      },
+    });
+
+    const existingKanjiIds = new Set(
+      existingRelations.map((rel) => rel.kanjiId),
+    );
+
+    // 새로 생성할 관계만 필터링
+    const newKanjiIds = kanjiIds.filter(
+      (kanjiId) => !existingKanjiIds.has(kanjiId),
+    );
+
+    if (newKanjiIds.length === 0) {
+      // 이미 모든 관계가 존재함
+      return;
+    }
+
+    // 배치 생성
+    try {
+      await this.prisma.wordKanji.createMany({
+        data: newKanjiIds.map((kanjiId) => ({
+          wordId,
+          kanjiId,
+        })),
+        skipDuplicates: true, // 안전장치
+      });
+    } catch (error: unknown) {
+      // Prisma unique constraint violation (P2002)
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code: string }).code === 'P2002'
+      ) {
+        // skipDuplicates를 사용했으므로 이 에러는 발생하지 않아야 하지만 안전장치
+        throw new BadRequestException('이미 존재하는 관계가 있습니다.');
+      }
+      throw error;
+    }
+  }
 }
