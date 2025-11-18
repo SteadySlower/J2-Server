@@ -12,6 +12,29 @@ import { UpdateKanjiDto } from './dto/update-kanji.dto';
 export class KanjisService {
   constructor(private prisma: PrismaService) {}
 
+  async findAll(userId: string) {
+    const kanjis = await this.prisma.kanji.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return kanjis.map((kanji) => ({
+      id: kanji.id,
+      kanji_book_id: kanji.kanjiBookId,
+      character: kanji.character,
+      meaning: kanji.meaning,
+      on_reading: kanji.onReading,
+      kun_reading: kanji.kunReading,
+      status: kanji.status,
+      created_at: kanji.createdAt.toISOString(),
+      updated_at: kanji.updatedAt.toISOString(),
+    }));
+  }
+
   async create(userId: string, createKanjiDto: CreateKanjiDto) {
     if (!createKanjiDto) {
       throw new BadRequestException('요청 본문이 필요합니다.');

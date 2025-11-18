@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -19,6 +20,11 @@ import { KanjisService } from './kanjis.service';
 @UseGuards(AuthGuard)
 export class KanjisController {
   constructor(private readonly kanjisService: KanjisService) {}
+
+  @Get()
+  findAll(@CurrentUser() user: CurrentUserPayload) {
+    return this.kanjisService.findAll(user.id);
+  }
 
   @Post()
   create(
