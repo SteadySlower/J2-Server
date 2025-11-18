@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -48,5 +49,13 @@ export class KanjiBooksController {
     @Body() updateKanjiBookDto: UpdateKanjiBookDto,
   ) {
     return this.kanjiBooksService.update(id, user.id, updateKanjiBookDto);
+  }
+
+  @Delete(':id')
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.kanjiBooksService.remove(id, user.id);
   }
 }

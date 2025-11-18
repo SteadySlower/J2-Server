@@ -121,4 +121,26 @@ export class KanjiBooksService {
       data: updateData,
     });
   }
+
+  async remove(id: string, userId: string) {
+    const kanjiBook = await this.prisma.kanjiBook.findUnique({
+      where: { id },
+    });
+
+    if (!kanjiBook) {
+      throw new NotFoundException('한자장을 찾을 수 없습니다.');
+    }
+
+    if (kanjiBook.userId !== userId) {
+      throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
+    }
+
+    await this.prisma.kanjiBook.delete({
+      where: { id },
+    });
+
+    return {
+      message: '한자장이 성공적으로 삭제되었습니다.',
+    };
+  }
 }
