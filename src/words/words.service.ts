@@ -73,27 +73,51 @@ export class WordsService {
         .filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (kanjisToCreate.length > 0) {
-        // 동시성 문제를 고려하여 createMany 사용 (skipDuplicates)
-        await this.prisma.kanji.createMany({
-          data: kanjisToCreate.map((kanjiData) => ({
-            userId,
-            character: kanjiData.character,
-            meaning: kanjiData.meaning,
-            onReading: kanjiData.onReading,
-            kunReading: kanjiData.kunReading,
-          })),
-          skipDuplicates: true,
-        });
-
-        // 생성된 한자들 다시 조회하여 ID 가져오기
-        const createdKanjis = await this.prisma.kanji.findMany({
+        // 동시성 문제를 고려: createMany 전에 한 번 더 확인
+        const finalCheckKanjis = await this.prisma.kanji.findMany({
           where: {
             userId,
             character: { in: kanjisToCreate.map((k) => k.character) },
           },
         });
 
-        newKanjiIds.push(...createdKanjis.map((k) => k.id));
+        const finalExistingCharacters = new Set(
+          finalCheckKanjis.map((k) => k.character),
+        );
+
+        // 정말로 없는 한자들만 필터링
+        const trulyMissingKanjis = kanjisToCreate.filter(
+          (k) => !finalExistingCharacters.has(k.character),
+        );
+
+        // 새로 생성할 한자들에 대한 ID는 이미 조회한 것 사용
+        const finalKanjiIds = [...finalCheckKanjis.map((k) => k.id)];
+
+        // 정말로 없는 한자들만 생성
+        if (trulyMissingKanjis.length > 0) {
+          await this.prisma.kanji.createMany({
+            data: trulyMissingKanjis.map((kanjiData) => ({
+              userId,
+              character: kanjiData.character,
+              meaning: kanjiData.meaning,
+              onReading: kanjiData.onReading,
+              kunReading: kanjiData.kunReading,
+            })),
+            skipDuplicates: true,
+          });
+
+          // 생성된 한자들 다시 조회하여 ID 가져오기
+          const newlyCreatedKanjis = await this.prisma.kanji.findMany({
+            where: {
+              userId,
+              character: { in: trulyMissingKanjis.map((k) => k.character) },
+            },
+          });
+
+          finalKanjiIds.push(...newlyCreatedKanjis.map((k) => k.id));
+        }
+
+        newKanjiIds.push(...finalKanjiIds);
       }
     }
 
@@ -202,23 +226,23 @@ export class WordsService {
       updateWordDto.japanese !== undefined &&
       updateWordDto.japanese !== word.japanese;
 
-    if (updateWordDto.japanese !== undefined) {
+    if (updateWordDto.japanese !== undefined && isJapaneseChanged) {
       // 자기 자신을 제외한 중복 체크
-      if (isJapaneseChanged) {
-        const existingWord = await this.prisma.word.findFirst({
-          where: {
-            bookId: word.bookId,
-            japanese: updateWordDto.japanese,
-            id: { not: id }, // 자기 자신 제외
-          },
-        });
+      const existingWord = await this.prisma.word.findFirst({
+        where: {
+          bookId: word.bookId,
+          japanese: updateWordDto.japanese,
+          id: { not: id }, // 자기 자신 제외
+        },
+      });
 
-        if (existingWord) {
-          throw new BadRequestException(
-            '이 단어장에 이미 같은 일본어 단어가 존재합니다.',
-          );
-        }
+      if (existingWord) {
+        throw new BadRequestException(
+          '이 단어장에 이미 같은 일본어 단어가 존재합니다.',
+        );
       }
+
+      // japanese가 실제로 변경된 경우에만 updateData에 추가
       updateData.japanese = updateWordDto.japanese;
     }
     if (updateWordDto.meaning !== undefined) {
