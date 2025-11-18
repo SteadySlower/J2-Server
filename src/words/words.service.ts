@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { DictionaryService } from '../dictionary/dictionary.service';
@@ -18,12 +19,17 @@ export class WordsService {
   ) {}
 
   /**
-   * 일본어 텍스트에서 한자를 추출하고, 필요한 경우 kanjis에 추가한 후 kanji ID 배열을 반환
+   * 트랜잭션 내에서 사용하는 processKanjisFromJapanese
+   * @param tx Prisma 트랜잭션 클라이언트
    * @param japanese 일본어 텍스트
    * @param userId 사용자 ID
    * @returns kanji ID 배열
    */
-  private async processKanjisFromJapanese(
+  private async processKanjisFromJapaneseWithTx(
+    tx: Omit<
+      Prisma.TransactionClient,
+      '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+    >,
     japanese: string,
     userId: string,
   ): Promise<string[]> {
@@ -35,7 +41,7 @@ export class WordsService {
     }
 
     // 2. 사용자의 kanjis에 존재하는지 확인
-    const existingKanjis = await this.prisma.kanji.findMany({
+    const existingKanjis = await tx.kanji.findMany({
       where: {
         userId,
         character: { in: kanjiCharacters },
@@ -74,7 +80,7 @@ export class WordsService {
 
       if (kanjisToCreate.length > 0) {
         // 동시성 문제를 고려: createMany 전에 한 번 더 확인
-        const finalCheckKanjis = await this.prisma.kanji.findMany({
+        const finalCheckKanjis = await tx.kanji.findMany({
           where: {
             userId,
             character: { in: kanjisToCreate.map((k) => k.character) },
@@ -95,7 +101,7 @@ export class WordsService {
 
         // 정말로 없는 한자들만 생성
         if (trulyMissingKanjis.length > 0) {
-          await this.prisma.kanji.createMany({
+          await tx.kanji.createMany({
             data: trulyMissingKanjis.map((kanjiData) => ({
               userId,
               character: kanjiData.character,
@@ -107,7 +113,7 @@ export class WordsService {
           });
 
           // 생성된 한자들 다시 조회하여 ID 가져오기
-          const newlyCreatedKanjis = await this.prisma.kanji.findMany({
+          const newlyCreatedKanjis = await tx.kanji.findMany({
             where: {
               userId,
               character: { in: trulyMissingKanjis.map((k) => k.character) },
@@ -122,6 +128,84 @@ export class WordsService {
     }
 
     return newKanjiIds;
+  }
+
+  /**
+   * 트랜잭션 내에서 사용하는 createWordKanjiRelationships
+   * @param tx Prisma 트랜잭션 클라이언트
+   * @param wordId 단어 UUID
+   * @param kanjiIds 한자 UUID 배열
+   * @param userId 사용자 UUID (소유권 확인용)
+   */
+  private async createWordKanjiRelationshipsWithTx(
+    tx: Omit<
+      Prisma.TransactionClient,
+      '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+    > & {
+      kanji: {
+        findMany: (args: any) => Promise<any[]>;
+      };
+      wordKanji: {
+        findMany: (args: any) => Promise<any[]>;
+        createMany: (args: any) => Promise<any>;
+      };
+    },
+    wordId: string,
+    kanjiIds: string[],
+    userId: string,
+  ): Promise<void> {
+    // kanjiIds가 비어있으면 아무것도 하지 않음
+    if (!kanjiIds || kanjiIds.length === 0) {
+      return;
+    }
+
+    // 각 Kanji 존재 및 소유권 확인
+    const kanjis = await tx.kanji.findMany({
+      where: {
+        id: { in: kanjiIds },
+      },
+    });
+
+    if (kanjis.length !== kanjiIds.length) {
+      throw new NotFoundException('일부 한자를 찾을 수 없습니다.');
+    }
+
+    // 모든 Kanji가 사용자 소유인지 확인
+    const invalidKanji = kanjis.find((kanji) => kanji.userId !== userId);
+    if (invalidKanji) {
+      throw new ForbiddenException('일부 한자에 접근할 권한이 없습니다.');
+    }
+
+    // 이미 존재하는 관계 확인 (중복 방지)
+    const existingRelations = await tx.wordKanji.findMany({
+      where: {
+        wordId,
+        kanjiId: { in: kanjiIds },
+      },
+    });
+
+    const existingKanjiIds = new Set(
+      existingRelations.map((rel) => rel.kanjiId),
+    );
+
+    // 새로 생성할 관계만 필터링
+    const newKanjiIds = kanjiIds.filter(
+      (kanjiId) => !existingKanjiIds.has(kanjiId),
+    );
+
+    if (newKanjiIds.length === 0) {
+      // 이미 모든 관계가 존재함
+      return;
+    }
+
+    // 배치 생성
+    await tx.wordKanji.createMany({
+      data: newKanjiIds.map((kanjiId) => ({
+        wordId,
+        kanjiId,
+      })),
+      skipDuplicates: true, // 안전장치
+    });
   }
 
   /**
@@ -166,24 +250,38 @@ export class WordsService {
       throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
     }
 
-    // 한자 처리 및 kanjis에 추가
-    const kanjiIds = await this.processKanjisFromJapanese(japanese, userId);
-
-    // 단어 생성
+    // 트랜잭션으로 원자성 보장
     try {
-      const word = await this.prisma.word.create({
-        data: {
-          bookId: book_id,
+      const word = await this.prisma.$transaction(async (tx) => {
+        // 한자 처리 및 kanjis에 추가
+        const kanjiIds = await this.processKanjisFromJapaneseWithTx(
+          tx,
           japanese,
-          meaning,
-          pronunciation: pronunciation || null,
-        },
-      });
+          userId,
+        );
 
-      // word_kanji 관계 생성
-      if (kanjiIds.length > 0) {
-        await this.createWordKanjiRelationships(word.id, kanjiIds, userId);
-      }
+        // 단어 생성
+        const createdWord = await tx.word.create({
+          data: {
+            bookId: book_id,
+            japanese,
+            meaning,
+            pronunciation: pronunciation || null,
+          },
+        });
+
+        // word_kanji 관계 생성
+        if (kanjiIds.length > 0) {
+          await this.createWordKanjiRelationshipsWithTx(
+            tx,
+            createdWord.id,
+            kanjiIds,
+            userId,
+          );
+        }
+
+        return createdWord;
+      });
 
       return {
         id: word.id,
@@ -260,29 +358,40 @@ export class WordsService {
     }
 
     try {
-      // word.update를 먼저 실행하여 원자성 보장
-      const updatedWord = await this.prisma.word.update({
-        where: { id },
-        data: updateData,
-      });
-
-      // japanese가 변경된 경우에만 관계 처리 (word.update 성공 후)
-      if (isJapaneseChanged && updateWordDto.japanese !== undefined) {
-        // 기존 word_kanji 관계 삭제
-        await this.prisma.wordKanji.deleteMany({
-          where: { wordId: id },
+      // 트랜잭션으로 원자성 보장
+      const updatedWord = await this.prisma.$transaction(async (tx) => {
+        // word.update 실행
+        const updated = await tx.word.update({
+          where: { id },
+          data: updateData,
         });
 
-        // 새로운 japanese에서 한자 처리 및 관계 생성
-        const kanjiIds = await this.processKanjisFromJapanese(
-          updateWordDto.japanese,
-          userId,
-        );
+        // japanese가 변경된 경우에만 관계 처리
+        if (isJapaneseChanged && updateWordDto.japanese !== undefined) {
+          // 기존 word_kanji 관계 삭제
+          await tx.wordKanji.deleteMany({
+            where: { wordId: id },
+          });
 
-        if (kanjiIds.length > 0) {
-          await this.createWordKanjiRelationships(id, kanjiIds, userId);
+          // 새로운 japanese에서 한자 처리 및 관계 생성
+          const kanjiIds = await this.processKanjisFromJapaneseWithTx(
+            tx,
+            updateWordDto.japanese,
+            userId,
+          );
+
+          if (kanjiIds.length > 0) {
+            await this.createWordKanjiRelationshipsWithTx(
+              tx,
+              id,
+              kanjiIds,
+              userId,
+            );
+          }
         }
-      }
+
+        return updated;
+      });
 
       return {
         id: updatedWord.id,
@@ -322,87 +431,5 @@ export class WordsService {
     return {
       message: '단어가 성공적으로 삭제되었습니다.',
     };
-  }
-
-  /**
-   * Word와 Kanji 간의 관계를 생성
-   * @param wordId 단어 UUID
-   * @param kanjiIds 한자 UUID 배열
-   * @param userId 사용자 UUID (소유권 확인용)
-   */
-  async createWordKanjiRelationships(
-    wordId: string,
-    kanjiIds: string[],
-    userId: string,
-  ): Promise<void> {
-    // Word 존재 및 소유권 확인
-    await this.findWordWithOwnershipCheck(wordId, userId);
-
-    // kanjiIds가 비어있으면 아무것도 하지 않음
-    if (!kanjiIds || kanjiIds.length === 0) {
-      return;
-    }
-
-    // 각 Kanji 존재 및 소유권 확인
-    const kanjis = await this.prisma.kanji.findMany({
-      where: {
-        id: { in: kanjiIds },
-      },
-    });
-
-    if (kanjis.length !== kanjiIds.length) {
-      throw new NotFoundException('일부 한자를 찾을 수 없습니다.');
-    }
-
-    // 모든 Kanji가 사용자 소유인지 확인
-    const invalidKanji = kanjis.find((kanji) => kanji.userId !== userId);
-    if (invalidKanji) {
-      throw new ForbiddenException('일부 한자에 접근할 권한이 없습니다.');
-    }
-
-    // 이미 존재하는 관계 확인 (중복 방지)
-    const existingRelations = await this.prisma.wordKanji.findMany({
-      where: {
-        wordId,
-        kanjiId: { in: kanjiIds },
-      },
-    });
-
-    const existingKanjiIds = new Set(
-      existingRelations.map((rel) => rel.kanjiId),
-    );
-
-    // 새로 생성할 관계만 필터링
-    const newKanjiIds = kanjiIds.filter(
-      (kanjiId) => !existingKanjiIds.has(kanjiId),
-    );
-
-    if (newKanjiIds.length === 0) {
-      // 이미 모든 관계가 존재함
-      return;
-    }
-
-    // 배치 생성
-    try {
-      await this.prisma.wordKanji.createMany({
-        data: newKanjiIds.map((kanjiId) => ({
-          wordId,
-          kanjiId,
-        })),
-        skipDuplicates: true, // 안전장치
-      });
-    } catch (error: unknown) {
-      // Prisma unique constraint violation (P2002)
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        (error as { code: string }).code === 'P2002'
-      ) {
-        // skipDuplicates를 사용했으므로 이 에러는 발생하지 않아야 하지만 안전장치
-        throw new BadRequestException('이미 존재하는 관계가 있습니다.');
-      }
-      throw error;
-    }
   }
 }
