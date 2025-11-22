@@ -220,7 +220,19 @@ export class WordsService {
           );
         }
 
-        return createdWord;
+        // kanjis 포함해서 조회
+        const wordWithKanjis = await tx.word.findUniqueOrThrow({
+          where: { id: createdWord.id },
+          include: {
+            kanjis: {
+              include: {
+                kanji: true,
+              },
+            },
+          },
+        });
+
+        return wordWithKanjis;
       });
 
       return {
@@ -232,6 +244,14 @@ export class WordsService {
         status: word.status,
         created_at: word.createdAt.toISOString(),
         updated_at: word.updatedAt.toISOString(),
+        kanjis: word.kanjis.map((wordKanji) => ({
+          id: wordKanji.kanji.id,
+          character: wordKanji.kanji.character,
+          meaning: wordKanji.kanji.meaning,
+          on_reading: wordKanji.kanji.onReading,
+          kun_reading: wordKanji.kanji.kunReading,
+          status: wordKanji.kanji.status,
+        })),
       };
     } catch (error: unknown) {
       // Prisma unique constraint violation (P2002)
@@ -301,7 +321,7 @@ export class WordsService {
       // 트랜잭션으로 원자성 보장
       const updatedWord = await this.prisma.$transaction(async (tx) => {
         // word.update 실행
-        const updated = await tx.word.update({
+        await tx.word.update({
           where: { id },
           data: updateData,
         });
@@ -357,7 +377,19 @@ export class WordsService {
           }
         }
 
-        return updated;
+        // kanjis 포함해서 조회
+        const wordWithKanjis = await tx.word.findUniqueOrThrow({
+          where: { id },
+          include: {
+            kanjis: {
+              include: {
+                kanji: true,
+              },
+            },
+          },
+        });
+
+        return wordWithKanjis;
       });
 
       return {
@@ -369,6 +401,14 @@ export class WordsService {
         status: updatedWord.status,
         created_at: updatedWord.createdAt.toISOString(),
         updated_at: updatedWord.updatedAt.toISOString(),
+        kanjis: updatedWord.kanjis.map((wordKanji) => ({
+          id: wordKanji.kanji.id,
+          character: wordKanji.kanji.character,
+          meaning: wordKanji.kanji.meaning,
+          on_reading: wordKanji.kanji.onReading,
+          kun_reading: wordKanji.kanji.kunReading,
+          status: wordKanji.kanji.status,
+        })),
       };
     } catch (error: unknown) {
       // Prisma unique constraint violation (P2002)
