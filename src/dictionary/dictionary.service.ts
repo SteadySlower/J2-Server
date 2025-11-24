@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import Kuroshiro from 'kuroshiro';
 import KuromojiAnalyzer from 'kuroshiro-analyzer-kuromoji';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PrismaTransactionClient } from '../prisma/prisma.types';
+import type { IAiService } from '../openAi/ai.interface';
 
 type DictionaryEntryPayload = {
   japanese: string;
@@ -17,7 +18,10 @@ type DictionaryRecordId = {
 export class DictionaryService {
   private kuroshiro: Kuroshiro | null = null;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject('AI_SERVICE') private aiService: IAiService,
+  ) {}
 
   private async getKuroshiroInstance() {
     if (!this.kuroshiro) {
@@ -59,16 +63,14 @@ export class DictionaryService {
     return result;
   }
 
-  // api 추가
-  getMeaning(word: string): Promise<string> {
-    void word;
-    return Promise.resolve('더미 의미');
+  async getMeaning(word: string): Promise<string> {
+    const meanings = await this.aiService.getMeaningsByWord(word);
+    return meanings.join(', ');
   }
 
-  // api 추가
-  searchWords(query: string): Promise<string[]> {
-    void query;
-    return Promise.resolve(['単語', 'ラーメン', 'お茶']);
+  async searchWords(query: string): Promise<string[]> {
+    const words = await this.aiService.getWordsByMeaning(query);
+    return words;
   }
 
   async getPronunciationCache(query: string) {

@@ -16,7 +16,9 @@ export class OpenAiService implements IAiService {
   }
 
   async getWordsByMeaning(meaning: string): Promise<string[]> {
-    const schema = z.array(z.string());
+    const schema = z.object({
+      items: z.array(z.string()),
+    });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
       'When the user provides a Korean word, return 1 to 5 Japanese words that match its meaning.',
@@ -39,11 +41,14 @@ export class OpenAiService implements IAiService {
     if (!parsed) {
       throw new Error('Failed to parse AI response.');
     }
-    return parsed;
+
+    return parsed.items;
   }
 
   async getMeaningsByWord(word: string): Promise<string[]> {
-    const schema = z.array(z.string());
+    const schema = z.object({
+      items: z.array(z.string()),
+    });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
       'When the user provides a Japanese word (hiragana/katakana/kanji), return 1 to 5 Korean meanings.',
@@ -63,11 +68,13 @@ export class OpenAiService implements IAiService {
     if (!parsed) {
       throw new Error('Failed to parse AI response.');
     }
-    return parsed;
+    return parsed.items;
   }
 
   async getWordsByPronunciation(pronunciation: string): Promise<string[]> {
-    const schema = z.array(z.string());
+    const schema = z.object({
+      items: z.array(z.string()),
+    });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
       'When the user provides a Korean transcription of a Japanese pronunciation, return 1 to 5 Japanese words that match the pronunciation.',
@@ -88,6 +95,6 @@ export class OpenAiService implements IAiService {
     if (!parsed) {
       throw new Error('Failed to parse AI response.');
     }
-    return parsed;
+    return parsed.items;
   }
 }
