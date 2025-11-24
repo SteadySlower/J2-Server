@@ -29,13 +29,17 @@ export class DictionaryApiService {
 
     const pronunciation = await this.dictionaryService.getPronunciation(query);
 
-    return [
+    const result: DictionarySearchResult[] = [
       {
         japanese: query,
         meaning: meaning,
         pronunciation: pronunciation,
       },
     ];
+
+    await this.dictionaryService.cacheJapaneseResults(query, result);
+
+    return result;
   }
 
   async searchByMeaning(query: string): Promise<DictionarySearchResult[]> {
@@ -61,6 +65,8 @@ export class DictionaryApiService {
         pronunciation: await this.dictionaryService.getPronunciation(jp),
       })),
     );
+
+    await this.dictionaryService.cacheMeaningResults(query, results);
 
     return results;
   }
@@ -88,6 +94,8 @@ export class DictionaryApiService {
         pronunciation: await this.dictionaryService.getPronunciation(jp),
       })),
     );
+
+    await this.dictionaryService.cachePronunciationResults(query, results);
 
     return results;
   }
