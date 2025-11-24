@@ -35,9 +35,9 @@ export class DictionaryService {
     });
   }
 
-  async getPronunciation(word: string): Promise<string | null> {
+  async getPronunciation(word: string): Promise<string> {
     if (!word) {
-      return null;
+      return '';
     }
 
     const kuroshiro = await this.getKuroshiroInstance();
@@ -50,13 +50,13 @@ export class DictionaryService {
   }
 
   // api 추가
-  getMeaning(word: string): Promise<string | null> {
+  getMeaning(word: string): Promise<string> {
     void word;
     return Promise.resolve('더미 의미');
   }
 
   // api 추가
-  searchWords(query: string): Promise<string[] | null> {
+  searchWords(query: string): Promise<string[]> {
     void query;
     return Promise.resolve(['単語', 'ラーメン', 'お茶']);
   }
