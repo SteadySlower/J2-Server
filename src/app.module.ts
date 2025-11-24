@@ -12,6 +12,7 @@ import { KanjiBooksModule } from './kanji-books/kanji-books.module';
 import { KanjisModule } from './kanjis/kanjis.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
 import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
+import { AiModule } from './openAi/ai.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
         SUPABASE_JWT_SECRET: Joi.string().required(),
         DATABASE_URL: Joi.string().required(),
         DIRECT_URL: Joi.string().required(),
+        OPENAI_API_KEY: Joi.string().required(),
       }),
     }),
     PrismaModule,
@@ -33,6 +35,7 @@ import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
     KanjisModule,
     DictionaryModule,
     DictionaryApiModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
