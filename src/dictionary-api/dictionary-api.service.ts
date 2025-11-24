@@ -21,7 +21,7 @@ export class DictionaryApiService {
     ];
   }
 
-  searchByKorean(query: string): DictionarySearchResult[] {
+  searchByMeaning(query: string): DictionarySearchResult[] {
     return [
       {
         japanese: 'japanese',
