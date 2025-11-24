@@ -11,6 +11,7 @@ import { WordsModule } from './words/words.module';
 import { KanjiBooksModule } from './kanji-books/kanji-books.module';
 import { KanjisModule } from './kanjis/kanjis.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
+import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { DictionaryModule } from './dictionary/dictionary.module';
     KanjiBooksModule,
     KanjisModule,
     DictionaryModule,
+    DictionaryApiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
