@@ -119,7 +119,7 @@ model WordKanji {
 // Dictionary
 model Dictionary {
   id           String   @id @default(uuid()) @db.Uuid
-  japanese     String
+  japanese     String   @unique
   meaning      String
   pronunciation String?
   createdAt    DateTime @default(now()) @map("created_at")
