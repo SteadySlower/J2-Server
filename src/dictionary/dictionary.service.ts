@@ -35,7 +35,7 @@ export class DictionaryService {
     });
   }
 
-  async getKanjiToJp(word: string): Promise<string | null> {
+  async getPronunciation(word: string): Promise<string | null> {
     if (!word) {
       return null;
     }

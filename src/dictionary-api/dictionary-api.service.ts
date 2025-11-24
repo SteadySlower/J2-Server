@@ -40,8 +40,4 @@ export class DictionaryApiService {
       },
     ];
   }
-
-  private async getKanjiToJp(word: string): Promise<string | null> {
-    return await this.dictionaryService.getKanjiToJp(word);
-  }
 }
