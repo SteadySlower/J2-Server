@@ -48,4 +48,16 @@ export class DictionaryService {
 
     return result;
   }
+
+  // api 추가
+  getMeaning(word: string): Promise<string | null> {
+    void word;
+    return Promise.resolve('더미 의미');
+  }
+
+  // api 추가
+  searchWords(query: string): Promise<string[] | null> {
+    void query;
+    return Promise.resolve(['単語', 'ラーメン', 'お茶']);
+  }
 }
