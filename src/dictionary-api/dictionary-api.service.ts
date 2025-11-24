@@ -12,6 +12,15 @@ export class DictionaryApiService {
   constructor(private readonly dictionaryService: DictionaryService) {}
 
   async searchByJapanese(query: string): Promise<DictionarySearchResult[]> {
+    const cached = await this.dictionaryService.getJapaneseCache(query);
+    if (cached.length > 0) {
+      return cached.map((entry) => ({
+        japanese: entry.japanese,
+        meaning: entry.meaning,
+        pronunciation: entry.pronunciation ?? '',
+      }));
+    }
+
     const meaning = await this.dictionaryService.getMeaning(query);
 
     if (!meaning) {
@@ -30,6 +39,15 @@ export class DictionaryApiService {
   }
 
   async searchByMeaning(query: string): Promise<DictionarySearchResult[]> {
+    const cached = await this.dictionaryService.getMeaningCache(query);
+    if (cached.length > 0) {
+      return cached.map((entry) => ({
+        japanese: entry.japanese,
+        meaning: entry.meaning,
+        pronunciation: entry.pronunciation ?? '',
+      }));
+    }
+
     const japaneseWords = await this.dictionaryService.searchWords(query);
 
     if (japaneseWords.length === 0) {
@@ -48,6 +66,15 @@ export class DictionaryApiService {
   }
 
   async searchBySound(query: string): Promise<DictionarySearchResult[]> {
+    const cached = await this.dictionaryService.getPronunciationCache(query);
+    if (cached.length > 0) {
+      return cached.map((entry) => ({
+        japanese: entry.japanese,
+        meaning: entry.meaning,
+        pronunciation: entry.pronunciation ?? '',
+      }));
+    }
+
     const japaneseWords = await this.dictionaryService.searchWords(query);
 
     if (japaneseWords.length === 0) {

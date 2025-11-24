@@ -60,4 +60,61 @@ export class DictionaryService {
     void query;
     return Promise.resolve(['単語', 'ラーメン', 'お茶']);
   }
+
+  async getPronunciationCache(query: string) {
+    const cache = await this.prisma.aiCachePronunciation.findUnique({
+      where: { queryHash: query },
+      include: {
+        dictionaries: {
+          include: {
+            dictionary: true,
+          },
+        },
+      },
+    });
+
+    if (!cache || cache.dictionaries.length === 0) {
+      return [];
+    }
+
+    return cache.dictionaries.map((item) => item.dictionary);
+  }
+
+  async getJapaneseCache(query: string) {
+    const cache = await this.prisma.aiCacheJapanese.findUnique({
+      where: { queryHash: query },
+      include: {
+        dictionaries: {
+          include: {
+            dictionary: true,
+          },
+        },
+      },
+    });
+
+    if (!cache || cache.dictionaries.length === 0) {
+      return [];
+    }
+
+    return cache.dictionaries.map((item) => item.dictionary);
+  }
+
+  async getMeaningCache(query: string) {
+    const cache = await this.prisma.aiCacheMeaning.findUnique({
+      where: { queryHash: query },
+      include: {
+        dictionaries: {
+          include: {
+            dictionary: true,
+          },
+        },
+      },
+    });
+
+    if (!cache || cache.dictionaries.length === 0) {
+      return [];
+    }
+
+    return cache.dictionaries.map((item) => item.dictionary);
+  }
 }
