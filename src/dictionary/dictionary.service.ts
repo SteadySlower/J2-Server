@@ -23,8 +23,15 @@ export class DictionaryService {
 
   private async getKuroshiroInstance() {
     if (!this.kuroshiro) {
-      this.kuroshiro = new Kuroshiro();
-      await this.kuroshiro.init(new KuromojiAnalyzer());
+      try {
+        this.kuroshiro = new Kuroshiro();
+        await this.kuroshiro.init(new KuromojiAnalyzer());
+      } catch {
+        this.kuroshiro = null;
+        throw new Error(
+          '발음 변환 서비스를 초기화하는 중 문제가 발생했습니다.',
+        );
+      }
     }
 
     return this.kuroshiro;
@@ -77,13 +84,17 @@ export class DictionaryService {
       return cached.pronunciation;
     }
 
-    const kuroshiro = await this.getKuroshiroInstance();
-    const result = await kuroshiro.convert(word, {
-      mode: 'furigana',
-      to: 'hiragana',
-    });
+    try {
+      const kuroshiro = await this.getKuroshiroInstance();
+      const result = await kuroshiro.convert(word, {
+        mode: 'furigana',
+        to: 'hiragana',
+      });
 
-    return result;
+      return result;
+    } catch {
+      throw new Error('발음 변환 중 문제가 발생했습니다.');
+    }
   }
 
   async searchByJapanese(query: string): Promise<DictionarySearchResult[]> {
