@@ -54,6 +54,14 @@ export class DictionaryService {
       return '';
     }
 
+    const cached = await this.prisma.dictionary.findUnique({
+      where: { japanese: word },
+      select: { pronunciation: true },
+    });
+    if (cached && cached.pronunciation) {
+      return cached.pronunciation;
+    }
+
     const kuroshiro = await this.getKuroshiroInstance();
     const result = await kuroshiro.convert(word, {
       mode: 'furigana',
@@ -63,13 +71,27 @@ export class DictionaryService {
     return result;
   }
 
-  async getMeaning(word: string): Promise<string> {
+  async getMeanings(word: string): Promise<string[]> {
+    const cached = await this.prisma.dictionary.findUnique({
+      where: { japanese: word },
+      select: { meaning: true },
+    });
+
+    if (cached && cached.meaning) {
+      return cached.meaning.split(', ');
+    }
+
     const meanings = await this.aiService.getMeaningsByWord(word);
-    return meanings.join(', ');
+    return meanings;
   }
 
-  async searchWords(query: string): Promise<string[]> {
+  async searchWithMeaning(query: string): Promise<string[]> {
     const words = await this.aiService.getWordsByMeaning(query);
+    return words;
+  }
+
+  async searchWithPronunciation(query: string): Promise<string[]> {
+    const words = await this.aiService.getWordsByPronunciation(query);
     return words;
   }
 

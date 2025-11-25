@@ -21,9 +21,9 @@ export class DictionaryApiService {
       }));
     }
 
-    const meaning = await this.dictionaryService.getMeaning(query);
+    const meanings = await this.dictionaryService.getMeanings(query);
 
-    if (!meaning) {
+    if (!meanings) {
       throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
     }
 
@@ -32,7 +32,7 @@ export class DictionaryApiService {
     const result: DictionarySearchResult[] = [
       {
         japanese: query,
-        meaning: meaning,
+        meaning: meanings.join(', '),
         pronunciation: pronunciation,
       },
     ];
@@ -52,18 +52,27 @@ export class DictionaryApiService {
       }));
     }
 
-    const japaneseWords = await this.dictionaryService.searchWords(query);
+    const japaneseWords = await this.dictionaryService.searchWithMeaning(query);
 
     if (japaneseWords.length === 0) {
       throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
     }
 
     const results = await Promise.all(
-      japaneseWords.map(async (jp) => ({
-        japanese: jp,
-        meaning: query,
-        pronunciation: await this.dictionaryService.getPronunciation(jp),
-      })),
+      japaneseWords.map(async (jp) => {
+        let meaningsFromDictionary =
+          await this.dictionaryService.getMeanings(jp);
+        if (!meaningsFromDictionary.includes(query)) {
+          meaningsFromDictionary = [query, ...meaningsFromDictionary];
+        }
+        const pronunciationFromDictionary =
+          await this.dictionaryService.getPronunciation(jp);
+        return {
+          japanese: jp,
+          meaning: meaningsFromDictionary.join(', '),
+          pronunciation: pronunciationFromDictionary,
+        };
+      }),
     );
 
     await this.dictionaryService.cacheMeaningResults(query, results);
@@ -81,7 +90,8 @@ export class DictionaryApiService {
       }));
     }
 
-    const japaneseWords = await this.dictionaryService.searchWords(query);
+    const japaneseWords =
+      await this.dictionaryService.searchWithPronunciation(query);
 
     if (japaneseWords.length === 0) {
       throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
@@ -90,7 +100,7 @@ export class DictionaryApiService {
     const results = await Promise.all(
       japaneseWords.map(async (jp) => ({
         japanese: jp,
-        meaning: await this.dictionaryService.getMeaning(jp),
+        meaning: (await this.dictionaryService.getMeanings(jp)).join(', '),
         pronunciation: await this.dictionaryService.getPronunciation(jp),
       })),
     );
