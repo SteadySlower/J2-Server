@@ -21,7 +21,7 @@ export class OpenAiService implements IAiService {
     });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
-      'When the user provides a Korean word, return 1 to 5 Japanese words that match its meaning.',
+      'When the user provides a Korean word, return up to 3 Japanese words that match its meaning.',
       'All words must be written strictly in Japanese characters (hiragana/katakana/kanji).',
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
@@ -51,7 +51,7 @@ export class OpenAiService implements IAiService {
     });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
-      'When the user provides a Japanese word (hiragana/katakana/kanji), return 1 to 5 Korean meanings.',
+      'When the user provides a Japanese word (hiragana/katakana/kanji), return up to 3 Korean meanings.',
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
     const response = await this.openai.responses.parse({
@@ -77,7 +77,7 @@ export class OpenAiService implements IAiService {
     });
     const systemPrompt = [
       'You are a Japanese dictionary assistant.',
-      'When the user provides a Korean transcription of a Japanese pronunciation, return 1 to 5 Japanese words that match the pronunciation.',
+      'When the user provides a Korean transcription of a Japanese pronunciation, return up to 3 Japanese words that match the pronunciation.',
       'All words must be strictly in Japanese characters (hiragana/katakana/kanji).',
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
