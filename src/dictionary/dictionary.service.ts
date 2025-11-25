@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import Kuroshiro from 'kuroshiro';
 import KuromojiAnalyzer from 'kuroshiro-analyzer-kuromoji';
 import { PrismaService } from '../prisma/prisma.service';
@@ -99,7 +99,7 @@ export class DictionaryService {
     const meanings = await this.getMeanings(query);
 
     if (!meanings || meanings.length === 0) {
-      throw new Error('검색 결과를 찾을 수 없습니다.');
+      throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
     }
 
     const pronunciation = await this.getPronunciation(query);
@@ -130,7 +130,7 @@ export class DictionaryService {
     const japaneseWords = await this.aiService.getWordsByMeaning(query);
 
     if (japaneseWords.length === 0) {
-      throw new Error('검색 결과를 찾을 수 없습니다.');
+      throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
     }
 
     const results = await Promise.all(
@@ -169,7 +169,7 @@ export class DictionaryService {
     const japaneseWords = await this.aiService.getWordsByPronunciation(query);
 
     if (japaneseWords.length === 0) {
-      throw new Error('검색 결과를 찾을 수 없습니다.');
+      throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
     }
 
     const results = await Promise.all(

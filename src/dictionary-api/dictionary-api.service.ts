@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DictionaryService } from '../dictionary/dictionary.service';
 
 type DictionarySearchResult = {
@@ -21,7 +25,7 @@ export class DictionaryApiService {
       ) {
         throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
       }
-      throw error;
+      throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
   }
 
@@ -35,7 +39,7 @@ export class DictionaryApiService {
       ) {
         throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
       }
-      throw error;
+      throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
   }
 
@@ -49,7 +53,7 @@ export class DictionaryApiService {
       ) {
         throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
       }
-      throw error;
+      throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
   }
 }

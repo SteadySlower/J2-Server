@@ -26,23 +26,27 @@ export class OpenAiService implements IAiService {
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
 
-    const response = await this.openai.responses.parse({
-      model: 'gpt-4o-mini',
-      input: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: meaning },
-      ],
-      text: {
-        format: zodTextFormat(schema, 'japanese_words'),
-      },
-    });
+    try {
+      const response = await this.openai.responses.parse({
+        model: 'gpt-4o-mini',
+        input: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: meaning },
+        ],
+        text: {
+          format: zodTextFormat(schema, 'japanese_words'),
+        },
+      });
 
-    const parsed = response.output_parsed;
-    if (!parsed) {
-      throw new Error('Failed to parse AI response.');
+      const parsed = response.output_parsed;
+      if (!parsed) {
+        return this.handleOpenAiError();
+      }
+
+      return parsed.items;
+    } catch {
+      return this.handleOpenAiError();
     }
-
-    return parsed.items;
   }
 
   async getMeaningsByWord(word: string): Promise<string[]> {
@@ -54,21 +58,25 @@ export class OpenAiService implements IAiService {
       'When the user provides a Japanese word (hiragana/katakana/kanji), return up to 3 Korean meanings.',
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
-    const response = await this.openai.responses.parse({
-      model: 'gpt-4o-mini',
-      input: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: word },
-      ],
-      text: {
-        format: zodTextFormat(schema, 'korean_meanings'),
-      },
-    });
-    const parsed = response.output_parsed;
-    if (!parsed) {
-      throw new Error('Failed to parse AI response.');
+    try {
+      const response = await this.openai.responses.parse({
+        model: 'gpt-4o-mini',
+        input: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: word },
+        ],
+        text: {
+          format: zodTextFormat(schema, 'korean_meanings'),
+        },
+      });
+      const parsed = response.output_parsed;
+      if (!parsed) {
+        return this.handleOpenAiError();
+      }
+      return parsed.items;
+    } catch {
+      return this.handleOpenAiError();
     }
-    return parsed.items;
   }
 
   async getWordsByPronunciation(pronunciation: string): Promise<string[]> {
@@ -81,20 +89,30 @@ export class OpenAiService implements IAiService {
       'All words must be strictly in Japanese characters (hiragana/katakana/kanji).',
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
-    const response = await this.openai.responses.parse({
-      model: 'gpt-4o-mini',
-      input: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: pronunciation },
-      ],
-      text: {
-        format: zodTextFormat(schema, 'japanese_words'),
-      },
-    });
-    const parsed = response.output_parsed;
-    if (!parsed) {
-      throw new Error('Failed to parse AI response.');
+    try {
+      const response = await this.openai.responses.parse({
+        model: 'gpt-4o-mini',
+        input: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: pronunciation },
+        ],
+        text: {
+          format: zodTextFormat(schema, 'japanese_words'),
+        },
+      });
+      const parsed = response.output_parsed;
+      if (!parsed) {
+        return this.handleOpenAiError();
+      }
+      return parsed.items;
+    } catch {
+      return this.handleOpenAiError();
     }
-    return parsed.items;
+  }
+
+  private handleOpenAiError(): never {
+    throw new Error(
+      'AI 서비스 호출 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+    );
   }
 }
