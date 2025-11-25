@@ -8,6 +8,7 @@ import { zodTextFormat } from 'openai/helpers/zod';
 @Injectable()
 export class OpenAiService implements IAiService {
   private readonly openai: OpenAI;
+  private readonly requestTimeoutMs = 10_000;
 
   constructor(private readonly configService: ConfigService) {
     this.openai = new OpenAI({
@@ -27,16 +28,18 @@ export class OpenAiService implements IAiService {
     ].join(' ');
 
     try {
-      const response = await this.openai.responses.parse({
-        model: 'gpt-4o-mini',
-        input: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: meaning },
-        ],
-        text: {
-          format: zodTextFormat(schema, 'japanese_words'),
-        },
-      });
+      const response = await this.callWithTimeout(() =>
+        this.openai.responses.parse({
+          model: 'gpt-4o-mini',
+          input: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: meaning },
+          ],
+          text: {
+            format: zodTextFormat(schema, 'japanese_words'),
+          },
+        }),
+      );
 
       const parsed = response.output_parsed;
       if (!parsed) {
@@ -59,16 +62,18 @@ export class OpenAiService implements IAiService {
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
     try {
-      const response = await this.openai.responses.parse({
-        model: 'gpt-4o-mini',
-        input: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: word },
-        ],
-        text: {
-          format: zodTextFormat(schema, 'korean_meanings'),
-        },
-      });
+      const response = await this.callWithTimeout(() =>
+        this.openai.responses.parse({
+          model: 'gpt-4o-mini',
+          input: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: word },
+          ],
+          text: {
+            format: zodTextFormat(schema, 'korean_meanings'),
+          },
+        }),
+      );
       const parsed = response.output_parsed;
       if (!parsed) {
         return this.handleOpenAiError();
@@ -90,16 +95,18 @@ export class OpenAiService implements IAiService {
       'Respond only with a JSON string array. Do not include any additional text or explanation.',
     ].join(' ');
     try {
-      const response = await this.openai.responses.parse({
-        model: 'gpt-4o-mini',
-        input: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: pronunciation },
-        ],
-        text: {
-          format: zodTextFormat(schema, 'japanese_words'),
-        },
-      });
+      const response = await this.callWithTimeout(() =>
+        this.openai.responses.parse({
+          model: 'gpt-4o-mini',
+          input: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: pronunciation },
+          ],
+          text: {
+            format: zodTextFormat(schema, 'japanese_words'),
+          },
+        }),
+      );
       const parsed = response.output_parsed;
       if (!parsed) {
         return this.handleOpenAiError();
@@ -114,5 +121,27 @@ export class OpenAiService implements IAiService {
     throw new Error(
       'AI 서비스 호출 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
     );
+  }
+
+  private async callWithTimeout<T>(fn: () => Promise<T>): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('AI 요청이 타임아웃되었습니다.'));
+      }, this.requestTimeoutMs);
+
+      fn()
+        .then((result) => {
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          if (error instanceof Error) {
+            reject(error);
+          } else {
+            reject(new Error('알 수 없는 AI 응답 오류가 발생했습니다.'));
+          }
+        });
+    });
   }
 }
