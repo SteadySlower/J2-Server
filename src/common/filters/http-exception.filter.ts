@@ -55,7 +55,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // 일반 Error는 내부 메시지를 노출하지 않고 사용자 친화적 메시지로 변환
+      message = '서버 에러가 발생했습니다. 잠시 후 다시 시도해주세요.';
     }
 
     const errorResponse: ApiErrorResponse = {
