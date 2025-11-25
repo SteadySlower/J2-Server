@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -19,11 +20,11 @@ export class DictionaryApiService {
     try {
       return await this.dictionaryService.searchByJapanese(query);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === '검색 결과를 찾을 수 없습니다.'
-      ) {
-        throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        throw error;
       }
       throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
@@ -33,11 +34,11 @@ export class DictionaryApiService {
     try {
       return await this.dictionaryService.searchByMeaning(query);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === '검색 결과를 찾을 수 없습니다.'
-      ) {
-        throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        throw error;
       }
       throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
@@ -47,11 +48,11 @@ export class DictionaryApiService {
     try {
       return await this.dictionaryService.searchBySound(query);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === '검색 결과를 찾을 수 없습니다.'
-      ) {
-        throw new NotFoundException('검색 결과를 찾을 수 없습니다.');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        throw error;
       }
       throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
