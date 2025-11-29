@@ -22,4 +22,11 @@ export class DictionaryApiController {
   async searchBySound(@Query() query: KoSearchQueryDto) {
     return await this.dictionaryApiService.searchBySound(query.query);
   }
+
+  @Get('pronunciation')
+  async getPronunciationByJapanese(@Query() query: JpSearchQueryDto) {
+    return await this.dictionaryApiService.getPronunciationByJapanese(
+      query.query,
+    );
+  }
 }

@@ -57,4 +57,18 @@ export class DictionaryApiService {
       throw new InternalServerErrorException('서버 에러가 발생했습니다.');
     }
   }
+
+  async getPronunciationByJapanese(query: string): Promise<string> {
+    try {
+      return await this.dictionaryService.getPronunciation(query);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('서버 에러가 발생했습니다.');
+    }
+  }
 }

@@ -70,7 +70,7 @@ export class DictionaryService {
     return meanings;
   }
 
-  private async getPronunciation(word: string): Promise<string> {
+  async getPronunciation(word: string): Promise<string> {
     if (!word) {
       return '';
     }
