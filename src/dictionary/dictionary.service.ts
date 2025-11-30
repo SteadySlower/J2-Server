@@ -87,8 +87,10 @@ export class DictionaryService {
     try {
       const kuroshiro = await this.getKuroshiroInstance();
       const result = await kuroshiro.convert(word, {
-        mode: 'furigana',
+        mode: 'okurigana',
         to: 'hiragana',
+        delimiter_start: '{',
+        delimiter_end: '}',
       });
 
       return result;

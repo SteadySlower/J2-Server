@@ -9,6 +9,10 @@ const jpSearchQuerySchema = z.object({
     .regex(
       /^[\p{Script=Han}\u3040-\u309F\u30A0-\u30FF\s\p{P}]+$/u,
       '일본어(한자, 히라가나, 카타카나), 공백 또는 문장부호만 입력 가능합니다.',
+    )
+    .refine(
+      (val) => !val.includes('{') && !val.includes('}'),
+      '중괄호({, })는 사용할 수 없습니다.',
     ),
 });
 
