@@ -191,6 +191,17 @@ export class WordsService {
       throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
     }
 
+    // 단어장에 이미 300개 이상의 단어가 있는지 확인
+    const wordCount = await this.prisma.word.count({
+      where: { bookId: book_id },
+    });
+
+    if (wordCount >= 300) {
+      throw new BadRequestException(
+        '단어장에는 최대 300개의 단어만 추가할 수 있습니다.',
+      );
+    }
+
     // 트랜잭션으로 원자성 보장
     try {
       const word = await this.prisma.$transaction(async (tx) => {
