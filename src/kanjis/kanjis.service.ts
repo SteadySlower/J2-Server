@@ -63,7 +63,73 @@ export class KanjisService {
     const kunReadingValue =
       kun_reading && kun_reading.trim() !== '' ? kun_reading.trim() : null;
 
-    // 한자 생성
+    // 이미 같은 character의 Kanji가 존재하는지 확인
+    const existingKanji = await this.prisma.kanji.findUnique({
+      where: {
+        userId_character: {
+          userId,
+          character,
+        },
+      },
+      include: {
+        kanjiBooks: {
+          where: kanji_book_id
+            ? {
+                kanjiBookId: kanji_book_id,
+              }
+            : undefined,
+        },
+      },
+    });
+
+    // 이미 같은 character의 Kanji가 존재하는 경우
+    if (existingKanji) {
+      // 한자장이 지정되었고, 이미 같은 관계가 존재하는 경우
+      if (kanji_book_id && existingKanji.kanjiBooks.length > 0) {
+        throw new BadRequestException(
+          '이미 같은 한자 문자가 해당 한자장에 존재합니다.',
+        );
+      }
+
+      // 한자장이 지정되었지만 관계가 없는 경우, 관계만 추가
+      if (kanji_book_id) {
+        try {
+          await this.prisma.kanjiKanjiBook.create({
+            data: {
+              kanjiId: existingKanji.id,
+              kanjiBookId: kanji_book_id,
+            },
+          });
+        } catch (relationError: unknown) {
+          // 관계 중복 에러 처리 (방어적 프로그래밍)
+          if (
+            relationError &&
+            typeof relationError === 'object' &&
+            'code' in relationError &&
+            (relationError as { code: string }).code === 'P2002'
+          ) {
+            throw new BadRequestException(
+              '이미 같은 한자 문자가 해당 한자장에 존재합니다.',
+            );
+          }
+          throw relationError;
+        }
+      }
+
+      // 기존 Kanji 반환
+      return {
+        id: existingKanji.id,
+        character: existingKanji.character,
+        meaning: existingKanji.meaning,
+        on_reading: existingKanji.onReading,
+        kun_reading: existingKanji.kunReading,
+        status: existingKanji.status,
+        created_at: existingKanji.createdAt.toISOString(),
+        updated_at: existingKanji.updatedAt.toISOString(),
+      };
+    }
+
+    // 새로운 Kanji 생성
     try {
       const kanji = await this.prisma.kanji.create({
         data: {
