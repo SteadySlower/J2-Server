@@ -93,89 +93,114 @@ async function main() {
     let kanjiIndex = 0; // 한자 목록의 현재 인덱스
 
     for (const bookData of dummyKanjiBooks) {
-      // 각 한자장마다 별도의 트랜잭션 사용
-      const result = await prisma.$transaction(async (tx) => {
-        // 한자장 생성
-        const kanjiBook = await tx.kanjiBook.create({
-          data: {
-            userId,
-            title: bookData.title,
-            status: bookData.status,
-            showFront: true,
-          },
-        });
+      // 각 한자장마다 별도의 트랜잭션 사용 (타임아웃 60초로 설정)
+      const result = await prisma.$transaction(
+        async (tx) => {
+          // 한자장 생성
+          const kanjiBook = await tx.kanjiBook.create({
+            data: {
+              userId,
+              title: bookData.title,
+              status: bookData.status,
+              showFront: true,
+            },
+          });
 
-        console.log(
-          `📖 한자장 생성: ${bookData.title} (${bookData.kanjiCount}개 한자 예정)`,
-        );
+          console.log(
+            `📖 한자장 생성: ${bookData.title} (${bookData.kanjiCount}개 한자 예정)`,
+          );
 
-        // 해당 한자장에 들어갈 한자 선택 (순서대로 100개씩)
-        const selectedKanjis = kanjiEntries.slice(
-          kanjiIndex,
-          kanjiIndex + bookData.kanjiCount,
-        );
-        kanjiIndex += bookData.kanjiCount;
+          // 해당 한자장에 들어갈 한자 선택 (순서대로 100개씩)
+          const selectedKanjis = kanjiEntries.slice(
+            kanjiIndex,
+            kanjiIndex + bookData.kanjiCount,
+          );
+          kanjiIndex += bookData.kanjiCount;
 
-        // 한자 생성 (중복 방지)
-        const kanjiIds: string[] = [];
+          // 한자 생성 및 한자장과의 관계 생성 (중복 방지)
+          const kanjiIds: string[] = [];
 
-        for (const kanjiData of selectedKanjis) {
-          try {
-            // 이미 사용자가 같은 한자를 가지고 있는지 확인
-            const existingKanji = await tx.kanji.findUnique({
-              where: {
-                userId_character: {
-                  userId,
-                  character: kanjiData.character,
-                },
-              },
-            });
-
-            if (existingKanji) {
-              // 이미 존재하면 한자장에만 연결
-              if (existingKanji.kanjiBookId !== kanjiBook.id) {
-                await tx.kanji.update({
-                  where: { id: existingKanji.id },
-                  data: { kanjiBookId: kanjiBook.id },
-                });
-              }
-              kanjiIds.push(existingKanji.id);
-            } else {
-              // 새로 생성
-              const createdKanji = await tx.kanji.create({
-                data: {
-                  userId,
-                  kanjiBookId: kanjiBook.id,
-                  character: kanjiData.character,
-                  meaning: kanjiData.meaning,
-                  onReading: kanjiData.onReading,
-                  kunReading: kanjiData.kunReading,
-                  status: 'learning',
+          for (const kanjiData of selectedKanjis) {
+            try {
+              // 이미 사용자가 같은 한자를 가지고 있는지 확인
+              const existingKanji = await tx.kanji.findUnique({
+                where: {
+                  userId_character: {
+                    userId,
+                    character: kanjiData.character,
+                  },
                 },
               });
-              kanjiIds.push(createdKanji.id);
-            }
-          } catch (error: unknown) {
-            // 중복 등 에러는 무시하고 계속 진행
-            if (
-              error &&
-              typeof error === 'object' &&
-              'code' in error &&
-              (error as { code: string }).code === 'P2002'
-            ) {
-              // 중복 에러는 무시
-              continue;
-            }
-            throw error;
-          }
-        }
 
-        return {
-          id: kanjiBook.id,
-          title: kanjiBook.title,
-          kanjiIds,
-        };
-      });
+              let kanjiId: string;
+
+              if (existingKanji) {
+                // 이미 존재하면 기존 한자 사용
+                kanjiId = existingKanji.id;
+              } else {
+                // 새로 생성
+                const createdKanji = await tx.kanji.create({
+                  data: {
+                    userId,
+                    character: kanjiData.character,
+                    meaning: kanjiData.meaning,
+                    onReading: kanjiData.onReading,
+                    kunReading: kanjiData.kunReading,
+                    status: 'learning',
+                  },
+                });
+                kanjiId = createdKanji.id;
+              }
+
+              // 한자장과 한자의 관계 생성 (이미 존재하면 무시)
+              try {
+                await tx.kanjiKanjiBook.create({
+                  data: {
+                    kanjiId,
+                    kanjiBookId: kanjiBook.id,
+                  },
+                });
+                kanjiIds.push(kanjiId);
+              } catch (relationError: unknown) {
+                // 관계가 이미 존재하는 경우 무시하고 계속 진행
+                if (
+                  relationError &&
+                  typeof relationError === 'object' &&
+                  'code' in relationError &&
+                  (relationError as { code: string }).code === 'P2002'
+                ) {
+                  // 관계 중복 에러는 무시하고 kanjiId는 추가
+                  kanjiIds.push(kanjiId);
+                  continue;
+                }
+                throw relationError;
+              }
+            } catch (error: unknown) {
+              // 중복 등 에러는 무시하고 계속 진행
+              if (
+                error &&
+                typeof error === 'object' &&
+                'code' in error &&
+                (error as { code: string }).code === 'P2002'
+              ) {
+                // 중복 에러는 무시
+                continue;
+              }
+              throw error;
+            }
+          }
+
+          return {
+            id: kanjiBook.id,
+            title: kanjiBook.title,
+            kanjiIds,
+          };
+        },
+        {
+          maxWait: 60000, // 최대 대기 시간 60초
+          timeout: 60000, // 타임아웃 60초
+        },
+      );
 
       createdBooks.push(result);
 

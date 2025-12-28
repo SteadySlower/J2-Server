@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createKanjiSchema } from './create-kanji.dto';
 
 const updateKanjiSchema = createKanjiSchema
-  .omit({ character: true })
+  .omit({ character: true, kanji_book_id: true })
   .partial()
   .extend({
     kanji_book_id: z

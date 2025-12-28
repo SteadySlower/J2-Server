@@ -24,7 +24,6 @@ export class KanjisService {
 
     return kanjis.map((kanji) => ({
       id: kanji.id,
-      kanji_book_id: kanji.kanjiBookId,
       character: kanji.character,
       meaning: kanji.meaning,
       on_reading: kanji.onReading,
@@ -69,17 +68,22 @@ export class KanjisService {
       const kanji = await this.prisma.kanji.create({
         data: {
           userId,
-          kanjiBookId: kanji_book_id || null,
           character,
           meaning,
           onReading: onReadingValue,
           kunReading: kunReadingValue,
+          ...(kanji_book_id && {
+            kanjiBooks: {
+              create: {
+                kanjiBookId: kanji_book_id,
+              },
+            },
+          }),
         },
       });
 
       return {
         id: kanji.id,
-        kanji_book_id: kanji.kanjiBookId,
         character: kanji.character,
         meaning: kanji.meaning,
         on_reading: kanji.onReading,
@@ -117,35 +121,11 @@ export class KanjisService {
     }
 
     const updateData: {
-      kanjiBookId?: string | null;
       meaning?: string;
       onReading?: string | null;
       kunReading?: string | null;
       status?: 'learning' | 'learned';
     } = {};
-
-    // 한자장 변경 처리
-    if (updateKanjiDto.kanji_book_id !== undefined) {
-      if (updateKanjiDto.kanji_book_id === null) {
-        // null로 설정하면 한자장에서 제거
-        updateData.kanjiBookId = null;
-      } else {
-        // 한자장 존재 및 소유권 확인
-        const kanjiBook = await this.prisma.kanjiBook.findUnique({
-          where: { id: updateKanjiDto.kanji_book_id },
-        });
-
-        if (!kanjiBook) {
-          throw new NotFoundException('한자장을 찾을 수 없습니다.');
-        }
-
-        if (kanjiBook.userId !== userId) {
-          throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
-        }
-
-        updateData.kanjiBookId = updateKanjiDto.kanji_book_id;
-      }
-    }
 
     if (updateKanjiDto.meaning !== undefined) {
       updateData.meaning = updateKanjiDto.meaning;
@@ -179,7 +159,6 @@ export class KanjisService {
 
     return {
       id: updatedKanji.id,
-      kanji_book_id: updatedKanji.kanjiBookId,
       character: updatedKanji.character,
       meaning: updatedKanji.meaning,
       on_reading: updatedKanji.onReading,

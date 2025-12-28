@@ -28,8 +28,13 @@ export class KanjiBooksService {
       where: { id },
       include: {
         kanjis: {
+          include: {
+            kanji: true,
+          },
           orderBy: {
-            createdAt: 'desc',
+            kanji: {
+              createdAt: 'desc',
+            },
           },
         },
       },
@@ -50,15 +55,15 @@ export class KanjiBooksService {
       showFront: kanjiBook.showFront,
       created_at: kanjiBook.createdAt.toISOString(),
       updated_at: kanjiBook.updatedAt.toISOString(),
-      kanjis: kanjiBook.kanjis.map((kanji) => ({
-        id: kanji.id,
-        character: kanji.character,
-        meaning: kanji.meaning,
-        on_reading: kanji.onReading,
-        kun_reading: kanji.kunReading,
-        status: kanji.status,
-        created_at: kanji.createdAt.toISOString(),
-        updated_at: kanji.updatedAt.toISOString(),
+      kanjis: kanjiBook.kanjis.map((kanjiKanjiBook) => ({
+        id: kanjiKanjiBook.kanji.id,
+        character: kanjiKanjiBook.kanji.character,
+        meaning: kanjiKanjiBook.kanji.meaning,
+        on_reading: kanjiKanjiBook.kanji.onReading,
+        kun_reading: kanjiKanjiBook.kanji.kunReading,
+        status: kanjiKanjiBook.kanji.status,
+        created_at: kanjiKanjiBook.kanji.createdAt.toISOString(),
+        updated_at: kanjiKanjiBook.kanji.updatedAt.toISOString(),
       })),
     };
   }

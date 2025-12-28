@@ -78,7 +78,7 @@ model KanjiBook {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  kanjis Kanji[]
+  kanjis KanjiKanjiBook[]
 
   @@map("kanji_books")
 }
@@ -87,7 +87,6 @@ model KanjiBook {
 model Kanji {
   id           String      @id @default(uuid()) @db.Uuid
   userId       String      @map("user_id") @db.Uuid
-  kanjiBookId  String?     @map("kanji_book_id") @db.Uuid
   character    String
   meaning      String
   onReading    String?     @map("on_reading")
@@ -96,8 +95,8 @@ model Kanji {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  kanjiBook KanjiBook? @relation(fields: [kanjiBookId], references: [id], onDelete: SetNull)
-  words     WordKanji[]
+  kanjiBooks KanjiKanjiBook[]
+  words      WordKanji[]
 
   @@unique([userId, character])
   @@map("kanjis")
@@ -113,6 +112,18 @@ model WordKanji {
 
   @@id([wordId, kanjiId])
   @@map("word_kanji")
+}
+
+// Kanji-KanjiBook Relationship
+model KanjiKanjiBook {
+  kanjiId     String @map("kanji_id") @db.Uuid
+  kanjiBookId String @map("kanji_book_id") @db.Uuid
+
+  kanji     Kanji     @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
+  kanjiBook KanjiBook @relation(fields: [kanjiBookId], references: [id], onDelete: Cascade)
+
+  @@id([kanjiId, kanjiBookId])
+  @@map("kanji_kanji_book")
 }
 
 // Dictionary
