@@ -82,18 +82,19 @@ async function main() {
     console.log('   (프로필이 없어도 더미데이터는 생성됩니다.)\n');
   }
 
-  // 트랜잭션으로 한자장과 한자 생성
+  // 각 한자장마다 별도의 트랜잭션으로 생성 (타임아웃 방지)
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const createdBooks: Array<{
-        id: string;
-        title: string;
-        kanjiIds: string[];
-      }> = [];
+    const createdBooks: Array<{
+      id: string;
+      title: string;
+      kanjiIds: string[];
+    }> = [];
 
-      let kanjiIndex = 0; // 한자 목록의 현재 인덱스
+    let kanjiIndex = 0; // 한자 목록의 현재 인덱스
 
-      for (const bookData of dummyKanjiBooks) {
+    for (const bookData of dummyKanjiBooks) {
+      // 각 한자장마다 별도의 트랜잭션 사용
+      const result = await prisma.$transaction(async (tx) => {
         // 한자장 생성
         const kanjiBook = await tx.kanjiBook.create({
           data: {
@@ -169,23 +170,23 @@ async function main() {
           }
         }
 
-        createdBooks.push({
+        return {
           id: kanjiBook.id,
           title: kanjiBook.title,
           kanjiIds,
-        });
+        };
+      });
 
-        console.log(
-          `   ✅ 완료: ${kanjiIds.length}개의 한자가 추가되었습니다.\n`,
-        );
-      }
+      createdBooks.push(result);
 
-      return createdBooks;
-    });
+      console.log(
+        `   ✅ 완료: ${result.kanjiIds.length}개의 한자가 추가되었습니다.\n`,
+      );
+    }
 
     console.log('\n✨ 더미데이터 생성 완료!\n');
     console.log('생성된 한자장:');
-    result.forEach((book) => {
+    createdBooks.forEach((book) => {
       console.log(`  - ${book.title}: ${book.kanjiIds.length}개 한자`);
     });
   } catch (error: unknown) {
