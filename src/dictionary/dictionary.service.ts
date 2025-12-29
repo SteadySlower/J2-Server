@@ -11,6 +11,12 @@ type DictionarySearchResult = {
   pronunciation: string;
 };
 
+type KanjiSearchResult = {
+  meaning: string;
+  ondoku: string | null;
+  kundoku: string | null;
+};
+
 @Injectable()
 export class DictionaryService {
   private kuroshiro: Kuroshiro | null = null;
@@ -203,5 +209,36 @@ export class DictionaryService {
     await this.cacheService.cachePronunciationResults(query, results);
 
     return results;
+  }
+
+  async searchKanji(character: string): Promise<KanjiSearchResult> {
+    if (!character || character.length !== 1) {
+      throw new NotFoundException('한자 1글자를 입력해주세요.');
+    }
+
+    const kanji = await this.prisma.kanjiDictionary.findUnique({
+      where: {
+        character,
+      },
+      select: {
+        meaning: true,
+        onReading: true,
+        kunReading: true,
+      },
+    });
+
+    if (!kanji) {
+      return {
+        meaning: '',
+        ondoku: null,
+        kundoku: null,
+      };
+    }
+
+    return {
+      meaning: kanji.meaning,
+      ondoku: kanji.onReading,
+      kundoku: kanji.kunReading,
+    };
   }
 }
