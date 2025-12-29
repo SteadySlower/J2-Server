@@ -12,6 +12,12 @@ type DictionarySearchResult = {
   pronunciation: string;
 };
 
+type KanjiSearchResult = {
+  meaning: string;
+  ondoku: string | null;
+  kundoku: string | null;
+};
+
 @Injectable()
 export class DictionaryApiService {
   constructor(private readonly dictionaryService: DictionaryService) {}
@@ -61,6 +67,20 @@ export class DictionaryApiService {
   async getPronunciationByJapanese(query: string): Promise<string> {
     try {
       return await this.dictionaryService.getPronunciation(query);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('서버 에러가 발생했습니다.');
+    }
+  }
+
+  async getKanjiDetail(character: string): Promise<KanjiSearchResult> {
+    try {
+      return await this.dictionaryService.searchKanji(character);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

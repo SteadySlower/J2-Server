@@ -27,3 +27,13 @@ const koSearchQuerySchema = z.object({
 });
 
 export class KoSearchQueryDto extends createZodDto(koSearchQuerySchema) {}
+
+const kanjiSearchQuerySchema = z.object({
+  character: z
+    .string()
+    .min(1, '한자 문자는 필수입니다')
+    .max(1, '한자 문자는 최대 1자까지 입력 가능합니다')
+    .regex(/^[\u4E00-\u9FFF]$/, '한자만 입력 가능합니다'),
+});
+
+export class KanjiSearchQueryDto extends createZodDto(kanjiSearchQuerySchema) {}
