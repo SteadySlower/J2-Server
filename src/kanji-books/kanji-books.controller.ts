@@ -51,6 +51,15 @@ export class KanjiBooksController {
     return this.kanjiBooksService.update(id, user.id, updateKanjiBookDto);
   }
 
+  @Delete(':bookId/kanjis/:kanjiId')
+  removeKanjiFromBook(
+    @Param('bookId', ParseUUIDPipe) bookId: string,
+    @Param('kanjiId', ParseUUIDPipe) kanjiId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.kanjiBooksService.removeKanjiFromBook(bookId, kanjiId, user.id);
+  }
+
   @Delete(':id')
   remove(
     @Param('id', ParseUUIDPipe) id: string,

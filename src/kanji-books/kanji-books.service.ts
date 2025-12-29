@@ -127,6 +127,60 @@ export class KanjiBooksService {
     });
   }
 
+  async removeKanjiFromBook(bookId: string, kanjiId: string, userId: string) {
+    const kanjiBook = await this.prisma.kanjiBook.findUnique({
+      where: { id: bookId },
+    });
+
+    if (!kanjiBook) {
+      throw new NotFoundException('한자장을 찾을 수 없습니다.');
+    }
+
+    if (kanjiBook.userId !== userId) {
+      throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
+    }
+
+    const kanji = await this.prisma.kanji.findUnique({
+      where: { id: kanjiId },
+    });
+
+    if (!kanji) {
+      throw new NotFoundException('한자를 찾을 수 없습니다.');
+    }
+
+    if (kanji.userId !== userId) {
+      throw new ForbiddenException('이 한자에 접근할 권한이 없습니다.');
+    }
+
+    const relation = await this.prisma.kanjiKanjiBook.findUnique({
+      where: {
+        kanjiId_kanjiBookId: {
+          kanjiId,
+          kanjiBookId: bookId,
+        },
+      },
+    });
+
+    if (!relation) {
+      throw new NotFoundException(
+        '해당 한자가 이 한자장에 포함되어 있지 않습니다.',
+      );
+    }
+
+    await this.prisma.kanjiKanjiBook.delete({
+      where: {
+        kanjiId_kanjiBookId: {
+          kanjiId,
+          kanjiBookId: bookId,
+        },
+      },
+    });
+
+    return {
+      message: '한자가 한자장에서 성공적으로 제거되었습니다.',
+    };
+  }
+
   async remove(id: string, userId: string) {
     const kanjiBook = await this.prisma.kanjiBook.findUnique({
       where: { id },
