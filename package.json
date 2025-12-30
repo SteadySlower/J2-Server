@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:kanji": "tsx scripts/seed-kanji-dictionary.ts",
     "seed:kanji-dummy": "tsx scripts/seed-kanji-dummy.ts",
+    "seed:dummy-user": "tsx scripts/seed-dummy-user-data.ts",
     "clear:dummy": "tsx scripts/clear-dummy-data.ts"
   },
   "dependencies": {
