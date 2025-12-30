@@ -91,15 +91,38 @@ export class KanjisService {
         );
       }
 
-      // 한자장이 지정되었지만 관계가 없는 경우, 관계만 추가
+      // 한자장이 지정되었지만 관계가 없는 경우, 한자 정보 업데이트 및 관계 추가
       if (kanji_book_id) {
         try {
+          // 한자 정보 업데이트
+          const updatedKanji = await this.prisma.kanji.update({
+            where: { id: existingKanji.id },
+            data: {
+              meaning,
+              onReading: onReadingValue,
+              kunReading: kunReadingValue,
+            },
+          });
+
+          // 관계 추가
           await this.prisma.kanjiKanjiBook.create({
             data: {
               kanjiId: existingKanji.id,
               kanjiBookId: kanji_book_id,
             },
           });
+
+          // 업데이트된 Kanji 반환
+          return {
+            id: updatedKanji.id,
+            character: updatedKanji.character,
+            meaning: updatedKanji.meaning,
+            on_reading: updatedKanji.onReading,
+            kun_reading: updatedKanji.kunReading,
+            status: updatedKanji.status,
+            created_at: updatedKanji.createdAt.toISOString(),
+            updated_at: updatedKanji.updatedAt.toISOString(),
+          };
         } catch (relationError: unknown) {
           // 관계 중복 에러 처리 (방어적 프로그래밍)
           if (
@@ -116,16 +139,26 @@ export class KanjisService {
         }
       }
 
-      // 기존 Kanji 반환
+      // 한자장이 지정되지 않은 경우, 한자 정보만 업데이트
+      const updatedKanji = await this.prisma.kanji.update({
+        where: { id: existingKanji.id },
+        data: {
+          meaning,
+          onReading: onReadingValue,
+          kunReading: kunReadingValue,
+        },
+      });
+
+      // 업데이트된 Kanji 반환
       return {
-        id: existingKanji.id,
-        character: existingKanji.character,
-        meaning: existingKanji.meaning,
-        on_reading: existingKanji.onReading,
-        kun_reading: existingKanji.kunReading,
-        status: existingKanji.status,
-        created_at: existingKanji.createdAt.toISOString(),
-        updated_at: existingKanji.updatedAt.toISOString(),
+        id: updatedKanji.id,
+        character: updatedKanji.character,
+        meaning: updatedKanji.meaning,
+        on_reading: updatedKanji.onReading,
+        kun_reading: updatedKanji.kunReading,
+        status: updatedKanji.status,
+        created_at: updatedKanji.createdAt.toISOString(),
+        updated_at: updatedKanji.updatedAt.toISOString(),
       };
     }
 
