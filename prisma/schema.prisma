@@ -111,6 +111,7 @@ model WordKanji {
   kanji Kanji @relation(fields: [kanjiId], references: [id], onDelete: Restrict)
 
   @@id([wordId, kanjiId])
+  @@index([kanjiId])
   @@map("word_kanji")
 }
 
