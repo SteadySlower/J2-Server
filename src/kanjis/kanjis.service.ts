@@ -268,6 +268,59 @@ export class KanjisService {
     };
   }
 
+  async findWordsByKanji(kanjiId: string, userId: string) {
+    // 한자 존재 및 소유권 확인
+    const kanji = await this.prisma.kanji.findUnique({
+      where: { id: kanjiId },
+    });
+
+    if (!kanji) {
+      throw new NotFoundException('한자를 찾을 수 없습니다.');
+    }
+
+    if (kanji.userId !== userId) {
+      throw new ForbiddenException('이 한자에 접근할 권한이 없습니다.');
+    }
+
+    // 한자와 연결된 단어를 pronunciation 기준으로 중복 제거하여 조회
+    const words = await this.prisma.word.findMany({
+      where: {
+        kanjis: {
+          some: {
+            kanjiId,
+          },
+        },
+      },
+      select: {
+        id: true,
+        bookId: true,
+        japanese: true,
+        meaning: true,
+        pronunciation: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      distinct: ['pronunciation'],
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    console.log(words);
+
+    return words.map((word) => ({
+      id: word.id,
+      book_id: word.bookId,
+      japanese: word.japanese,
+      meaning: word.meaning,
+      pronunciation: word.pronunciation,
+      status: word.status,
+      created_at: word.createdAt.toISOString(),
+      updated_at: word.updatedAt.toISOString(),
+    }));
+  }
+
   async remove(id: string, userId: string) {
     // 한자 존재 및 소유권 확인
     const kanji = await this.prisma.kanji.findUnique({

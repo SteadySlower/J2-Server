@@ -212,11 +212,29 @@ async function main() {
 
         const wordData = dummyWords[wordIndex];
         try {
+          // 발음을 API에서 가져오기
+          let pronunciation: string | undefined;
+          try {
+            const pronunciationResult = (await apiRequest(
+              'GET',
+              `/dictionary/pronunciation?query=${encodeURIComponent(wordData.japanese)}`,
+            )) as string;
+            pronunciation = pronunciationResult || undefined;
+          } catch (pronunciationError: unknown) {
+            // 발음 조회 실패 시 undefined로 설정 (선택적 필드이므로 계속 진행)
+            console.warn(
+              `   ⚠️  발음 조회 실패: ${wordData.japanese}`,
+              pronunciationError instanceof Error
+                ? pronunciationError.message
+                : pronunciationError,
+            );
+          }
+
           await apiRequest('POST', '/words', {
             book_id: wordBook.id,
             japanese: wordData.japanese,
             meaning: wordData.meaning,
-            pronunciation: wordData.pronunciation,
+            ...(pronunciation && { pronunciation }),
           });
           wordIndex++;
         } catch (error: unknown) {

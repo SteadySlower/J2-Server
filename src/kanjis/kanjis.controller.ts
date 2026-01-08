@@ -26,6 +26,14 @@ export class KanjisController {
     return this.kanjisService.findAll(user.id);
   }
 
+  @Get(':id/words')
+  async findWordsByKanji(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return await this.kanjisService.findWordsByKanji(id, user.id);
+  }
+
   @Post()
   create(
     @CurrentUser() user: CurrentUserPayload,
