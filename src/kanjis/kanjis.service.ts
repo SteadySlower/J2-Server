@@ -307,8 +307,6 @@ export class KanjisService {
       },
     });
 
-    console.log(words);
-
     return words.map((word) => ({
       id: word.id,
       book_id: word.bookId,
