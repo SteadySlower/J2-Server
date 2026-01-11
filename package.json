@@ -21,6 +21,7 @@
     "seed:kanji": "tsx scripts/seed-kanji-dictionary.ts",
     "seed:kanji-dummy": "tsx scripts/seed-kanji-dummy.ts",
     "seed:dummy-user": "tsx scripts/seed-dummy-user-data.ts",
+    "seed:schedule-books": "tsx scripts/seed-schedule-books.ts",
     "clear:dummy": "tsx scripts/clear-dummy-data.ts"
   },
   "dependencies": {
