@@ -13,6 +13,7 @@ import { KanjisModule } from './kanjis/kanjis.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
 import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
 import { AiModule } from './openAi/ai.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AiModule } from './openAi/ai.module';
     DictionaryModule,
     DictionaryApiModule,
     AiModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

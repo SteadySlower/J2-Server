@@ -36,6 +36,18 @@ model Profile {
   @@map("profile")
 }
 
+// Schedule
+model Schedule {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @map("user_id") @db.Uuid
+  studyDays  Int      @map("study_days") @default(2)
+  reviewDays Int[]    @map("review_days") @default([7, 14, 28])
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("schedules")
+}
+
 // Word Books
 model WordBook {
   id        String     @id @default(uuid()) @db.Uuid
