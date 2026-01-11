@@ -43,10 +43,8 @@ export class SchedulesService {
     });
 
     if (!schedule) {
-      const defaultSchedule = await this.prisma.schedule.upsert({
-        where: { userId },
-        update: {},
-        create: {
+      const defaultSchedule = await this.prisma.schedule.create({
+        data: {
           userId,
           studyDays: 2,
           reviewDays: [7, 14, 28],
