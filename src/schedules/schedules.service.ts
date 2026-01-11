@@ -24,7 +24,6 @@ export class SchedulesService {
 
     return {
       id: schedule.id,
-      user_id: schedule.userId,
       study_days: schedule.studyDays,
       review_days: schedule.reviewDays,
       created_at: schedule.createdAt.toISOString(),
