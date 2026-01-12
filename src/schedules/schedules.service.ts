@@ -105,6 +105,9 @@ export class SchedulesService {
       },
     });
 
+    const { review } = await this.getOrCreateReview(userId);
+    const reviewedWordBookIds = new Set(review.wordBookReviews);
+
     return {
       study: studyWordBooks.map((book) => ({
         id: book.id,
@@ -114,14 +117,16 @@ export class SchedulesService {
         created_at: book.createdAt.toISOString(),
         updated_at: book.updatedAt.toISOString(),
       })),
-      review: reviewWordBooks.map((book) => ({
-        id: book.id,
-        title: book.title,
-        status: book.status,
-        show_front: book.showFront,
-        created_at: book.createdAt.toISOString(),
-        updated_at: book.updatedAt.toISOString(),
-      })),
+      review: reviewWordBooks
+        .filter((book) => !reviewedWordBookIds.has(book.id))
+        .map((book) => ({
+          id: book.id,
+          title: book.title,
+          status: book.status,
+          show_front: book.showFront,
+          created_at: book.createdAt.toISOString(),
+          updated_at: book.updatedAt.toISOString(),
+        })),
     };
   }
 
@@ -161,6 +166,9 @@ export class SchedulesService {
       },
     });
 
+    const { review } = await this.getOrCreateReview(userId);
+    const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
+
     return {
       study: studyKanjiBooks.map((book) => ({
         id: book.id,
@@ -170,14 +178,16 @@ export class SchedulesService {
         created_at: book.createdAt.toISOString(),
         updated_at: book.updatedAt.toISOString(),
       })),
-      review: reviewKanjiBooks.map((book) => ({
-        id: book.id,
-        title: book.title,
-        status: book.status,
-        show_front: book.showFront,
-        created_at: book.createdAt.toISOString(),
-        updated_at: book.updatedAt.toISOString(),
-      })),
+      review: reviewKanjiBooks
+        .filter((book) => !reviewedKanjiBookIds.has(book.id))
+        .map((book) => ({
+          id: book.id,
+          title: book.title,
+          status: book.status,
+          show_front: book.showFront,
+          created_at: book.createdAt.toISOString(),
+          updated_at: book.updatedAt.toISOString(),
+        })),
     };
   }
 
