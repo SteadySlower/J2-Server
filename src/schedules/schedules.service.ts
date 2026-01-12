@@ -226,4 +226,114 @@ export class SchedulesService {
       return { start, end };
     });
   }
+
+  /**
+   * Review를 가져오거나 생성하고, 날짜가 오늘이 아니면 배열을 비웁니다.
+   * userId가 unique이므로 사용자당 최대 1개의 Review만 존재합니다.
+   * 여러 곳에서 사용되므로 내부 함수로 분리했습니다.
+   */
+  private async getOrCreateReview(userId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // userId가 unique이므로 최대 1개만 존재
+    const existingReview = await this.prisma.review.findUnique({
+      where: { userId },
+    });
+
+    if (!existingReview) {
+      // Review가 없으면 새로 생성
+      const newReview = await this.prisma.review.create({
+        data: {
+          userId,
+          reviewDate: today,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+      });
+      return {
+        review: newReview,
+        shouldReset: false,
+      };
+    }
+
+    // Review가 있으면 날짜 확인
+    const reviewDate = new Date(existingReview.reviewDate);
+    reviewDate.setHours(0, 0, 0, 0);
+    const shouldReset = reviewDate.getTime() !== today.getTime();
+
+    if (shouldReset) {
+      // 날짜가 다르면 배열을 비우고 날짜 업데이트
+      const updatedReview = await this.prisma.review.update({
+        where: { userId },
+        data: {
+          reviewDate: today,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+      });
+      return {
+        review: updatedReview,
+        shouldReset: true,
+      };
+    }
+
+    // 날짜가 같으면 기존 Review 그대로 사용
+    return {
+      review: existingReview,
+      shouldReset: false,
+    };
+  }
+
+  async addWordBookReview(userId: string, wordBookId: string) {
+    const { review } = await this.getOrCreateReview(userId);
+
+    const updatedWordBookReviews = [...review.wordBookReviews];
+    if (!updatedWordBookReviews.includes(wordBookId)) {
+      updatedWordBookReviews.push(wordBookId);
+    }
+
+    const updatedReview = await this.prisma.review.update({
+      where: { userId },
+      data: {
+        wordBookReviews: updatedWordBookReviews,
+      },
+    });
+
+    return {
+      id: updatedReview.id,
+      user_id: updatedReview.userId,
+      review_date: updatedReview.reviewDate.toISOString().split('T')[0],
+      word_book_reviews: updatedReview.wordBookReviews,
+      kanji_book_reviews: updatedReview.kanjiBookReviews,
+      created_at: updatedReview.createdAt.toISOString(),
+      updated_at: updatedReview.updatedAt.toISOString(),
+    };
+  }
+
+  async addKanjiBookReview(userId: string, kanjiBookId: string) {
+    const { review } = await this.getOrCreateReview(userId);
+
+    const updatedKanjiBookReviews = [...review.kanjiBookReviews];
+    if (!updatedKanjiBookReviews.includes(kanjiBookId)) {
+      updatedKanjiBookReviews.push(kanjiBookId);
+    }
+
+    const updatedReview = await this.prisma.review.update({
+      where: { userId },
+      data: {
+        kanjiBookReviews: updatedKanjiBookReviews,
+      },
+    });
+
+    return {
+      id: updatedReview.id,
+      user_id: updatedReview.userId,
+      review_date: updatedReview.reviewDate.toISOString().split('T')[0],
+      word_book_reviews: updatedReview.wordBookReviews,
+      kanji_book_reviews: updatedReview.kanjiBookReviews,
+      created_at: updatedReview.createdAt.toISOString(),
+      updated_at: updatedReview.updatedAt.toISOString(),
+    };
+  }
 }
