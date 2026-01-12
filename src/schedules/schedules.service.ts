@@ -22,6 +22,25 @@ export class SchedulesService {
       },
     });
 
+    // Schedule이 변경되면 Review를 리셋
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await this.prisma.review.upsert({
+      where: { userId },
+      update: {
+        reviewDate: today,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+      },
+      create: {
+        userId,
+        reviewDate: today,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+      },
+    });
+
     return {
       id: schedule.id,
       study_days: schedule.studyDays,
