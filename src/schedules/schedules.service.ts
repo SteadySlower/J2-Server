@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { getTodayDate } from '../common/utils/date';
+import { getTodayDate, isToday } from '../common/utils/date';
 import { ScheduleDto } from './dto/schedule.dto';
 
 @Injectable()
@@ -287,10 +287,8 @@ export class SchedulesService {
       };
     }
 
-    // Review가 있으면 날짜 확인
-    const reviewDate = new Date(existingReview.reviewDate);
-    reviewDate.setHours(0, 0, 0, 0);
-    const shouldReset = reviewDate.getTime() !== today.getTime();
+    // Review가 있으면 날짜 확인 (Luxon을 사용하여 날짜만 비교)
+    const shouldReset = !isToday(existingReview.reviewDate);
 
     if (shouldReset) {
       // 날짜가 다르면 배열을 비우고 날짜 업데이트
