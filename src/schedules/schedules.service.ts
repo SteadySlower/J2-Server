@@ -1,5 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { getTodayDate } from '../common/utils/date';
 import { ScheduleDto } from './dto/schedule.dto';
 
 @Injectable()
@@ -23,8 +28,7 @@ export class SchedulesService {
     });
 
     // Schedule이 변경되면 Review를 리셋
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayDate();
 
     await this.prisma.review.upsert({
       where: { userId },
@@ -216,8 +220,7 @@ export class SchedulesService {
    * 예: 오늘이 1월 5일이고 studyDays=2이면, 1월 3일 00:00:00부터 1월 5일 23:59:59까지
    */
   private getDateRange(studyDays: number): { start: Date; end: Date } {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayDate();
 
     const start = new Date(today);
     start.setDate(start.getDate() - studyDays);
@@ -239,8 +242,7 @@ export class SchedulesService {
   private getReviewDateRanges(
     reviewDays: number[],
   ): Array<{ start: Date; end: Date }> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayDate();
 
     return reviewDays.map((days) => {
       const start = new Date(today);
@@ -262,8 +264,7 @@ export class SchedulesService {
    * 여러 곳에서 사용되므로 내부 함수로 분리했습니다.
    */
   private async getOrCreateReview(userId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayDate();
 
     // userId가 unique이므로 최대 1개만 존재
     const existingReview = await this.prisma.review.findUnique({
@@ -314,18 +315,60 @@ export class SchedulesService {
     };
   }
 
-  async addWordBookReview(userId: string, wordBookId: string) {
+  /**
+   * 단어장 또는 한자장의 존재 여부와 소유권을 확인합니다.
+   */
+  private async validateBookOwnership(
+    bookId: string,
+    userId: string,
+    bookType: 'wordBook' | 'kanjiBook',
+  ) {
+    if (bookType === 'wordBook') {
+      const wordBook = await this.prisma.wordBook.findUnique({
+        where: { id: bookId },
+      });
+
+      if (!wordBook) {
+        throw new NotFoundException('단어장을 찾을 수 없습니다.');
+      }
+
+      if (wordBook.userId !== userId) {
+        throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
+      }
+    } else {
+      const kanjiBook = await this.prisma.kanjiBook.findUnique({
+        where: { id: bookId },
+      });
+
+      if (!kanjiBook) {
+        throw new NotFoundException('한자장을 찾을 수 없습니다.');
+      }
+
+      if (kanjiBook.userId !== userId) {
+        throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
+      }
+    }
+  }
+
+  /**
+   * Review에 단어장 또는 한자장 ID를 추가하는 공통 로직입니다.
+   */
+  private async addBookReviewToReview(
+    userId: string,
+    bookId: string,
+    field: 'wordBookReviews' | 'kanjiBookReviews',
+  ) {
     const { review } = await this.getOrCreateReview(userId);
 
-    const updatedWordBookReviews = [...review.wordBookReviews];
-    if (!updatedWordBookReviews.includes(wordBookId)) {
-      updatedWordBookReviews.push(wordBookId);
+    const updatedReviews = [...review[field]];
+    if (!updatedReviews.includes(bookId)) {
+      updatedReviews.push(bookId);
     }
 
     const updatedReview = await this.prisma.review.update({
       where: { userId },
       data: {
-        wordBookReviews: updatedWordBookReviews,
+        [field]: updatedReviews,
       },
     });
 
@@ -340,29 +383,13 @@ export class SchedulesService {
     };
   }
 
+  async addWordBookReview(userId: string, wordBookId: string) {
+    await this.validateBookOwnership(wordBookId, userId, 'wordBook');
+    return this.addBookReviewToReview(userId, wordBookId, 'wordBookReviews');
+  }
+
   async addKanjiBookReview(userId: string, kanjiBookId: string) {
-    const { review } = await this.getOrCreateReview(userId);
-
-    const updatedKanjiBookReviews = [...review.kanjiBookReviews];
-    if (!updatedKanjiBookReviews.includes(kanjiBookId)) {
-      updatedKanjiBookReviews.push(kanjiBookId);
-    }
-
-    const updatedReview = await this.prisma.review.update({
-      where: { userId },
-      data: {
-        kanjiBookReviews: updatedKanjiBookReviews,
-      },
-    });
-
-    return {
-      id: updatedReview.id,
-      user_id: updatedReview.userId,
-      review_date: updatedReview.reviewDate.toISOString().split('T')[0],
-      word_book_reviews: updatedReview.wordBookReviews,
-      kanji_book_reviews: updatedReview.kanjiBookReviews,
-      created_at: updatedReview.createdAt.toISOString(),
-      updated_at: updatedReview.updatedAt.toISOString(),
-    };
+    await this.validateBookOwnership(kanjiBookId, userId, 'kanjiBook');
+    return this.addBookReviewToReview(userId, kanjiBookId, 'kanjiBookReviews');
   }
 }
