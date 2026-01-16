@@ -4,14 +4,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { getTodayDate, isToday } from '../common/utils/date';
+import { subtractDays } from '../common/utils/date';
 import { ScheduleDto } from './dto/schedule.dto';
 
 @Injectable()
 export class SchedulesService {
   constructor(private prisma: PrismaService) {}
 
-  async upsert(userId: string, scheduleDto: ScheduleDto) {
+  async upsert(userId: string, scheduleDto: ScheduleDto, currentDate: string) {
     const { study_days, review_days } = scheduleDto;
 
     const schedule = await this.prisma.schedule.upsert({
@@ -28,18 +28,16 @@ export class SchedulesService {
     });
 
     // Schedule이 변경되면 Review를 리셋
-    const today = getTodayDate();
-
     await this.prisma.review.upsert({
       where: { userId },
       update: {
-        reviewDate: today,
+        reviewDate: currentDate,
         wordBookReviews: [],
         kanjiBookReviews: [],
       },
       create: {
         userId,
-        reviewDate: today,
+        reviewDate: currentDate,
         wordBookReviews: [],
         kanjiBookReviews: [],
       },
@@ -92,18 +90,21 @@ export class SchedulesService {
     };
   }
 
-  async findWordBooksBySchedule(userId: string) {
+  async findWordBooksBySchedule(userId: string, currentDate: string) {
     const schedule = await this.findOne(userId);
     const studyDays = schedule.study_days;
     const reviewDays = schedule.review_days;
 
-    const { start: studyStart, end: studyEnd } = this.getDateRange(studyDays);
-    const reviewDateRanges = this.getReviewDateRanges(reviewDays);
+    const { start: studyStart, end: studyEnd } = this.getDateRange(
+      studyDays,
+      currentDate,
+    );
+    const reviewDates = this.getReviewDates(reviewDays, currentDate);
 
     const studyWordBooks = await this.prisma.wordBook.findMany({
       where: {
         userId,
-        createdAt: {
+        createdDate: {
           gte: studyStart,
           lte: studyEnd,
         },
@@ -116,19 +117,16 @@ export class SchedulesService {
     const reviewWordBooks = await this.prisma.wordBook.findMany({
       where: {
         userId,
-        OR: reviewDateRanges.map((range) => ({
-          createdAt: {
-            gte: range.start,
-            lt: range.end,
-          },
-        })),
+        createdDate: {
+          in: reviewDates,
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    const { review } = await this.getOrCreateReview(userId);
+    const { review } = await this.getOrCreateReview(userId, currentDate);
     const reviewedWordBookIds = new Set(review.wordBookReviews);
 
     return {
@@ -153,18 +151,21 @@ export class SchedulesService {
     };
   }
 
-  async findKanjiBooksBySchedule(userId: string) {
+  async findKanjiBooksBySchedule(userId: string, currentDate: string) {
     const schedule = await this.findOne(userId);
     const studyDays = schedule.study_days;
     const reviewDays = schedule.review_days;
 
-    const { start: studyStart, end: studyEnd } = this.getDateRange(studyDays);
-    const reviewDateRanges = this.getReviewDateRanges(reviewDays);
+    const { start: studyStart, end: studyEnd } = this.getDateRange(
+      studyDays,
+      currentDate,
+    );
+    const reviewDates = this.getReviewDates(reviewDays, currentDate);
 
     const studyKanjiBooks = await this.prisma.kanjiBook.findMany({
       where: {
         userId,
-        createdAt: {
+        createdDate: {
           gte: studyStart,
           lte: studyEnd,
         },
@@ -177,19 +178,16 @@ export class SchedulesService {
     const reviewKanjiBooks = await this.prisma.kanjiBook.findMany({
       where: {
         userId,
-        OR: reviewDateRanges.map((range) => ({
-          createdAt: {
-            gte: range.start,
-            lt: range.end,
-          },
-        })),
+        createdDate: {
+          in: reviewDates,
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    const { review } = await this.getOrCreateReview(userId);
+    const { review } = await this.getOrCreateReview(userId, currentDate);
     const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
 
     return {
@@ -215,47 +213,26 @@ export class SchedulesService {
   }
 
   /**
-   * 학습 기간의 날짜 범위를 계산합니다.
+   * 학습 기간의 날짜 범위를 계산합니다 (문자열 날짜 형식).
    * 시간이 아닌 날짜 기준으로 계산됩니다.
-   * 예: 오늘이 1월 5일이고 studyDays=2이면, 1월 3일 00:00:00부터 1월 5일 23:59:59까지
+   * 예: 오늘이 2026-01-05이고 studyDays=2이면, 2026-01-03부터 2026-01-05까지
    */
-  private getDateRange(studyDays: number): { start: Date; end: Date } {
-    const today = getTodayDate();
-
-    const start = new Date(today);
-    start.setDate(start.getDate() - studyDays);
-    // start는 해당 날짜의 00:00:00
-
-    const end = new Date(today);
-    end.setHours(23, 59, 59, 999);
-    // end는 오늘의 23:59:59
-
-    return { start, end };
+  private getDateRange(
+    studyDays: number,
+    currentDate: string,
+  ): { start: string; end: string } {
+    const startDateStr = subtractDays(currentDate, studyDays);
+    return { start: startDateStr, end: currentDate };
   }
 
   /**
-   * 복습 날짜 범위 배열을 계산합니다.
+   * 복습 날짜 배열을 계산합니다 (문자열 날짜 형식).
    * 시간이 아닌 날짜 기준으로 계산됩니다.
-   * 예: 오늘이 1월 5일이고 reviewDays=[7, 14, 28]이면,
-   * 12월 29일 00:00:00~다음날 00:00:00 (exclusive), 12월 22일 00:00:00~다음날 00:00:00 (exclusive), 12월 8일 00:00:00~다음날 00:00:00 (exclusive)
+   * 예: 오늘이 2026-01-15이고 reviewDays=[7, 14, 28]이면,
+   * ["2026-01-08", "2026-01-01", "2025-12-18"]
    */
-  private getReviewDateRanges(
-    reviewDays: number[],
-  ): Array<{ start: Date; end: Date }> {
-    const today = getTodayDate();
-
-    return reviewDays.map((days) => {
-      const start = new Date(today);
-      start.setDate(start.getDate() - days);
-      start.setHours(0, 0, 0, 0);
-
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      end.setHours(0, 0, 0, 0);
-      // end는 다음 날 00:00:00 (exclusive)
-
-      return { start, end };
-    });
+  private getReviewDates(reviewDays: number[], currentDate: string): string[] {
+    return reviewDays.map((days) => subtractDays(currentDate, days));
   }
 
   /**
@@ -263,9 +240,7 @@ export class SchedulesService {
    * userId가 unique이므로 사용자당 최대 1개의 Review만 존재합니다.
    * 여러 곳에서 사용되므로 내부 함수로 분리했습니다.
    */
-  private async getOrCreateReview(userId: string) {
-    const today = getTodayDate();
-
+  private async getOrCreateReview(userId: string, currentDate: string) {
     // userId가 unique이므로 최대 1개만 존재
     const existingReview = await this.prisma.review.findUnique({
       where: { userId },
@@ -276,7 +251,7 @@ export class SchedulesService {
       const newReview = await this.prisma.review.create({
         data: {
           userId,
-          reviewDate: today,
+          reviewDate: currentDate,
           wordBookReviews: [],
           kanjiBookReviews: [],
         },
@@ -287,15 +262,15 @@ export class SchedulesService {
       };
     }
 
-    // Review가 있으면 날짜 확인 (Luxon을 사용하여 날짜만 비교)
-    const shouldReset = !isToday(existingReview.reviewDate);
+    // Review가 있으면 날짜 확인 (문자열 직접 비교)
+    const shouldReset = existingReview.reviewDate !== currentDate;
 
     if (shouldReset) {
       // 날짜가 다르면 배열을 비우고 날짜 업데이트
       const updatedReview = await this.prisma.review.update({
         where: { userId },
         data: {
-          reviewDate: today,
+          reviewDate: currentDate,
           wordBookReviews: [],
           kanjiBookReviews: [],
         },
@@ -355,8 +330,9 @@ export class SchedulesService {
     userId: string,
     bookId: string,
     field: 'wordBookReviews' | 'kanjiBookReviews',
+    currentDate: string,
   ) {
-    const { review } = await this.getOrCreateReview(userId);
+    const { review } = await this.getOrCreateReview(userId, currentDate);
 
     const updatedReviews = [...review[field]];
     if (!updatedReviews.includes(bookId)) {
@@ -373,7 +349,7 @@ export class SchedulesService {
     return {
       id: updatedReview.id,
       user_id: updatedReview.userId,
-      review_date: updatedReview.reviewDate.toISOString().split('T')[0],
+      review_date: updatedReview.reviewDate,
       word_book_reviews: updatedReview.wordBookReviews,
       kanji_book_reviews: updatedReview.kanjiBookReviews,
       created_at: updatedReview.createdAt.toISOString(),
@@ -381,13 +357,31 @@ export class SchedulesService {
     };
   }
 
-  async addWordBookReview(userId: string, wordBookId: string) {
+  async addWordBookReview(
+    userId: string,
+    wordBookId: string,
+    currentDate: string,
+  ) {
     await this.validateBookOwnership(wordBookId, userId, 'wordBook');
-    return this.addBookReviewToReview(userId, wordBookId, 'wordBookReviews');
+    return this.addBookReviewToReview(
+      userId,
+      wordBookId,
+      'wordBookReviews',
+      currentDate,
+    );
   }
 
-  async addKanjiBookReview(userId: string, kanjiBookId: string) {
+  async addKanjiBookReview(
+    userId: string,
+    kanjiBookId: string,
+    currentDate: string,
+  ) {
     await this.validateBookOwnership(kanjiBookId, userId, 'kanjiBook');
-    return this.addBookReviewToReview(userId, kanjiBookId, 'kanjiBookReviews');
+    return this.addBookReviewToReview(
+      userId,
+      kanjiBookId,
+      'kanjiBookReviews',
+      currentDate,
+    );
   }
 }

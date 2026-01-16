@@ -73,13 +73,14 @@ export class KanjiBooksService {
       throw new BadRequestException('요청 본문이 필요합니다.');
     }
 
-    const { title, showFront = true } = createKanjiBookDto;
+    const { title, showFront = true, created_date } = createKanjiBookDto;
 
     return await this.prisma.kanjiBook.create({
       data: {
         userId,
         title,
         showFront,
+        createdDate: created_date,
       },
     });
   }

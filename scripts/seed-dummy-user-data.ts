@@ -180,9 +180,20 @@ const dummyWords = [
   },
 ];
 
+// 오늘 날짜를 YYYY-MM-DD 형식으로 반환
+function getTodayDateString(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function main() {
   console.log('더미 사용자 데이터 생성 시작...\n');
   console.log(`🌐 API 서버: ${API_BASE_URL}\n`);
+
+  const todayDate = getTodayDateString();
 
   try {
     // 1. 단어장 10개 만들기
@@ -192,6 +203,7 @@ async function main() {
       const wordBook = (await apiRequest('POST', '/word-books', {
         title: `단어장 ${i}`,
         showFront: true,
+        created_date: todayDate,
       })) as { id: string };
       wordBooks.push(wordBook);
       console.log(`   ✅ 단어장 ${i} 생성 완료: ${wordBook.id}`);
@@ -252,6 +264,7 @@ async function main() {
       const kanjiBook = (await apiRequest('POST', '/kanji-books', {
         title: `한자장 ${i}`,
         showFront: true,
+        created_date: todayDate,
       })) as { id: string };
       kanjiBooks.push(kanjiBook);
       console.log(`   ✅ 한자장 ${i} 생성 완료: ${kanjiBook.id}`);

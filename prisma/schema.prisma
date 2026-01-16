@@ -52,7 +52,7 @@ model Schedule {
 model Review {
   id                String   @id @default(uuid()) @db.Uuid
   userId            String   @unique @map("user_id") @db.Uuid
-  reviewDate        DateTime @map("review_date") @db.Date
+  reviewDate        String   @map("review_date")
   wordBookReviews   String[] @map("word_book_reviews") @db.Uuid
   kanjiBookReviews  String[] @map("kanji_book_reviews") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
@@ -63,13 +63,14 @@ model Review {
 
 // Word Books
 model WordBook {
-  id        String     @id @default(uuid()) @db.Uuid
-  userId    String     @map("user_id") @db.Uuid
-  title     String
-  status    BookStatus @default(studying)
-  showFront Boolean    @default(true) @map("show_front")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  title       String
+  status      BookStatus @default(studying)
+  showFront   Boolean    @default(true) @map("show_front")
+  createdDate String     @map("created_date")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
   words Word[]
 
@@ -95,13 +96,14 @@ model Word {
 
 // Kanji Books
 model KanjiBook {
-  id        String     @id @default(uuid()) @db.Uuid
-  userId    String     @map("user_id") @db.Uuid
-  title     String
-  status    BookStatus @default(studying)
-  showFront Boolean    @default(true) @map("show_front")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  title       String
+  status      BookStatus @default(studying)
+  showFront   Boolean    @default(true) @map("show_front")
+  createdDate String     @map("created_date")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
   kanjis KanjiKanjiBook[]
 

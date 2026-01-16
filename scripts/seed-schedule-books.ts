@@ -46,6 +46,14 @@ function getCountForDay(daysAgo: number): number {
   return daysAgo % 2 === 0 ? 2 : 1;
 }
 
+// Date 객체를 YYYY-MM-DD 형식의 문자열로 변환
+function formatDateToString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function main() {
   const userId = getUserId();
   console.log(`📝 사용자 ID: ${userId}`);
@@ -115,6 +123,7 @@ async function main() {
             title: `${TEST_MARKER} - 단어장 ${dateStr} #${j + 1}`,
             status: 'studying',
             showFront: true,
+            createdDate: formatDateToString(date),
             createdAt: getStartOfDay(date),
             updatedAt: getStartOfDay(date),
           },
@@ -130,6 +139,7 @@ async function main() {
             title: `${TEST_MARKER} - 한자장 ${dateStr} #${j + 1}`,
             status: 'studying',
             showFront: true,
+            createdDate: formatDateToString(date),
             createdAt: getStartOfDay(date),
             updatedAt: getStartOfDay(date),
           },

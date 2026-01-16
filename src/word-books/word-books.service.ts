@@ -82,13 +82,14 @@ export class WordBooksService {
       throw new BadRequestException('요청 본문이 필요합니다.');
     }
 
-    const { title, showFront = true } = createWordBookDto;
+    const { title, showFront = true, created_date } = createWordBookDto;
 
     return await this.prisma.wordBook.create({
       data: {
         userId,
         title,
         showFront,
+        createdDate: created_date,
       },
     });
   }

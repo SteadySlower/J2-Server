@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -7,6 +7,7 @@ import {
   AddWordBookReviewDto,
   AddKanjiBookReviewDto,
 } from './dto/add-review.dto';
+import { CurrentDateQueryDto } from './dto/current-date-query.dto';
 import { SchedulesService } from './schedules.service';
 
 @Controller('schedules')
@@ -19,7 +20,11 @@ export class SchedulesController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() scheduleDto: ScheduleDto,
   ) {
-    return this.schedulesService.upsert(user.id, scheduleDto);
+    return this.schedulesService.upsert(
+      user.id,
+      scheduleDto,
+      scheduleDto.current_date,
+    );
   }
 
   @Get()
@@ -28,13 +33,25 @@ export class SchedulesController {
   }
 
   @Get('word-books')
-  findWordBooksBySchedule(@CurrentUser() user: CurrentUserPayload) {
-    return this.schedulesService.findWordBooksBySchedule(user.id);
+  findWordBooksBySchedule(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: CurrentDateQueryDto,
+  ) {
+    return this.schedulesService.findWordBooksBySchedule(
+      user.id,
+      query.current_date,
+    );
   }
 
   @Get('kanji-books')
-  findKanjiBooksBySchedule(@CurrentUser() user: CurrentUserPayload) {
-    return this.schedulesService.findKanjiBooksBySchedule(user.id);
+  findKanjiBooksBySchedule(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: CurrentDateQueryDto,
+  ) {
+    return this.schedulesService.findKanjiBooksBySchedule(
+      user.id,
+      query.current_date,
+    );
   }
 
   @Post('word-books/review')
@@ -45,6 +62,7 @@ export class SchedulesController {
     return this.schedulesService.addWordBookReview(
       user.id,
       addWordBookReviewDto.word_book_id,
+      addWordBookReviewDto.current_date,
     );
   }
 
@@ -56,6 +74,7 @@ export class SchedulesController {
     return this.schedulesService.addKanjiBookReview(
       user.id,
       addKanjiBookReviewDto.kanji_book_id,
+      addKanjiBookReviewDto.current_date,
     );
   }
 }
