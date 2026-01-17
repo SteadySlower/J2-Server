@@ -384,4 +384,31 @@ export class SchedulesService {
       currentDate,
     );
   }
+
+  async resetReview(userId: string, currentDate: string) {
+    const review = await this.prisma.review.upsert({
+      where: { userId },
+      update: {
+        reviewDate: currentDate,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+      },
+      create: {
+        userId,
+        reviewDate: currentDate,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+      },
+    });
+
+    return {
+      id: review.id,
+      user_id: review.userId,
+      review_date: review.reviewDate,
+      word_book_reviews: review.wordBookReviews,
+      kanji_book_reviews: review.kanjiBookReviews,
+      created_at: review.createdAt.toISOString(),
+      updated_at: review.updatedAt.toISOString(),
+    };
+  }
 }

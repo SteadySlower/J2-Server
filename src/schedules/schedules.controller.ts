@@ -77,4 +77,12 @@ export class SchedulesController {
       addKanjiBookReviewDto.current_date,
     );
   }
+
+  @Post('review/reset')
+  resetReview(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: CurrentDateQueryDto,
+  ) {
+    return this.schedulesService.resetReview(user.id, query.current_date);
+  }
 }

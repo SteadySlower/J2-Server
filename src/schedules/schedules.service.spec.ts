@@ -820,4 +820,94 @@ describe('SchedulesService', () => {
       expect(result.review_date).toBe(currentDate);
     });
   });
+
+  describe('resetReview', () => {
+    it('기존 review가 있으면 배열을 비우고 날짜를 업데이트해야 함', async () => {
+      const userId = 'user-1';
+      const currentDate = '2026-01-15';
+
+      const mockExistingReview = {
+        id: 'review-1',
+        userId,
+        reviewDate: '2026-01-14',
+        wordBookReviews: ['word-book-1', 'word-book-2'],
+        kanjiBookReviews: ['kanji-book-1', 'kanji-book-2'],
+        createdAt: new Date('2026-01-14T00:00:00Z'),
+        updatedAt: new Date('2026-01-14T00:00:00Z'),
+      };
+
+      const mockResetReview = {
+        ...mockExistingReview,
+        reviewDate: currentDate,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+        updatedAt: new Date('2026-01-15T00:00:00Z'),
+      };
+
+      prismaService.review.upsert.mockResolvedValue(mockResetReview);
+
+      const result = await service.resetReview(userId, currentDate);
+
+      expect(prismaService.review.upsert).toHaveBeenCalledWith({
+        where: { userId },
+        update: {
+          reviewDate: currentDate,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+        create: {
+          userId,
+          reviewDate: currentDate,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+      });
+
+      expect(result.id).toBe('review-1');
+      expect(result.user_id).toBe(userId);
+      expect(result.review_date).toBe(currentDate);
+      expect(result.word_book_reviews).toEqual([]);
+      expect(result.kanji_book_reviews).toEqual([]);
+    });
+
+    it('review가 없으면 새로 생성해야 함', async () => {
+      const userId = 'user-1';
+      const currentDate = '2026-01-15';
+
+      const mockNewReview = {
+        id: 'review-1',
+        userId,
+        reviewDate: currentDate,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+        createdAt: new Date('2026-01-15T00:00:00Z'),
+        updatedAt: new Date('2026-01-15T00:00:00Z'),
+      };
+
+      prismaService.review.upsert.mockResolvedValue(mockNewReview);
+
+      const result = await service.resetReview(userId, currentDate);
+
+      expect(prismaService.review.upsert).toHaveBeenCalledWith({
+        where: { userId },
+        update: {
+          reviewDate: currentDate,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+        create: {
+          userId,
+          reviewDate: currentDate,
+          wordBookReviews: [],
+          kanjiBookReviews: [],
+        },
+      });
+
+      expect(result.id).toBe('review-1');
+      expect(result.user_id).toBe(userId);
+      expect(result.review_date).toBe(currentDate);
+      expect(result.word_book_reviews).toEqual([]);
+      expect(result.kanji_book_reviews).toEqual([]);
+    });
+  });
 });
