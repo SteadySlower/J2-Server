@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
 import { UpdateWordBookDto } from './dto/update-word-book.dto';
+import { MoveWordsDto } from './dto/move-words.dto';
 
 @Injectable()
 export class WordBooksService {
@@ -156,6 +157,106 @@ export class WordBooksService {
 
     return {
       message: '단어장이 성공적으로 삭제되었습니다.',
+    };
+  }
+
+  async moveWords(
+    sourceBookId: string,
+    userId: string,
+    moveWordsDto: MoveWordsDto,
+  ) {
+    const { target_book_id, word_ids } = moveWordsDto;
+
+    // 소스 단어장과 타겟 단어장이 같은 경우
+    if (sourceBookId === target_book_id) {
+      throw new BadRequestException(
+        '소스 단어장과 타겟 단어장이 같을 수 없습니다.',
+      );
+    }
+
+    // 소스 단어장 존재 및 소유권 확인
+    const sourceWordBook = await this.prisma.wordBook.findUnique({
+      where: { id: sourceBookId },
+    });
+
+    if (!sourceWordBook) {
+      throw new NotFoundException('소스 단어장을 찾을 수 없습니다.');
+    }
+
+    if (sourceWordBook.userId !== userId) {
+      throw new ForbiddenException('소스 단어장에 접근할 권한이 없습니다.');
+    }
+
+    // 타겟 단어장 존재 및 소유권 확인
+    const targetWordBook = await this.prisma.wordBook.findUnique({
+      where: { id: target_book_id },
+    });
+
+    if (!targetWordBook) {
+      throw new NotFoundException('타겟 단어장을 찾을 수 없습니다.');
+    }
+
+    if (targetWordBook.userId !== userId) {
+      throw new ForbiddenException('타겟 단어장에 접근할 권한이 없습니다.');
+    }
+
+    // 단어들이 소스 단어장에 속하는지 확인
+    const words = await this.prisma.word.findMany({
+      where: {
+        id: { in: word_ids },
+      },
+      include: {
+        book: true,
+      },
+    });
+
+    if (words.length !== word_ids.length) {
+      throw new NotFoundException('일부 단어를 찾을 수 없습니다.');
+    }
+
+    // 단어들의 소유권 및 소스 단어장 확인
+    for (const word of words) {
+      if (word.book.userId !== userId) {
+        throw new ForbiddenException('일부 단어에 접근할 권한이 없습니다.');
+      }
+
+      if (word.bookId !== sourceBookId) {
+        throw new BadRequestException(
+          '일부 단어가 소스 단어장에 속하지 않습니다.',
+        );
+      }
+    }
+
+    // 타겟 단어장의 현재 단어 수 확인 (300개 제한)
+    const targetWordCount = await this.prisma.word.count({
+      where: { bookId: target_book_id },
+    });
+
+    if (targetWordCount + word_ids.length > 300) {
+      throw new BadRequestException(
+        `단어장에는 최대 300개의 단어만 추가할 수 있습니다. 현재 ${targetWordCount}개가 있으며, ${word_ids.length}개를 추가하면 제한을 초과합니다.`,
+      );
+    }
+
+    // 트랜잭션으로 원자성 보장
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 단어들의 bookId 일괄 업데이트
+      const updateResult = await tx.word.updateMany({
+        where: {
+          id: { in: word_ids },
+          bookId: sourceBookId, // 소스 단어장에 속한 단어만 업데이트
+        },
+        data: {
+          bookId: target_book_id,
+        },
+      });
+
+      return updateResult.count;
+    });
+
+    return {
+      message: `${result}개의 단어가 성공적으로 이동되었습니다.`,
+      moved_count: result,
     };
   }
 }

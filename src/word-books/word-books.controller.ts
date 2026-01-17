@@ -14,6 +14,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
 import { UpdateWordBookDto } from './dto/update-word-book.dto';
+import { MoveWordsDto } from './dto/move-words.dto';
 import { WordBooksService } from './word-books.service';
 
 @Controller('word-books')
@@ -40,6 +41,15 @@ export class WordBooksController {
     @Body() createWordBookDto: CreateWordBookDto,
   ) {
     return this.wordBooksService.create(user.id, createWordBookDto);
+  }
+
+  @Post(':sourceBookId/move-words')
+  moveWords(
+    @Param('sourceBookId', ParseUUIDPipe) sourceBookId: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() moveWordsDto: MoveWordsDto,
+  ) {
+    return this.wordBooksService.moveWords(sourceBookId, user.id, moveWordsDto);
   }
 
   @Patch(':id')
