@@ -14,6 +14,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
 import { UpdateKanjiBookDto } from './dto/update-kanji-book.dto';
+import { MoveKanjisDto } from './dto/move-kanjis.dto';
 import { KanjiBooksService } from './kanji-books.service';
 
 @Controller('kanji-books')
@@ -40,6 +41,19 @@ export class KanjiBooksController {
     @Body() createKanjiBookDto: CreateKanjiBookDto,
   ) {
     return this.kanjiBooksService.create(user.id, createKanjiBookDto);
+  }
+
+  @Post(':sourceBookId/move-kanjis')
+  moveKanjis(
+    @Param('sourceBookId', ParseUUIDPipe) sourceBookId: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() moveKanjisDto: MoveKanjisDto,
+  ) {
+    return this.kanjiBooksService.moveKanjis(
+      sourceBookId,
+      user.id,
+      moveKanjisDto,
+    );
   }
 
   @Patch(':id')

@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
 import { UpdateKanjiBookDto } from './dto/update-kanji-book.dto';
+import { MoveKanjisDto } from './dto/move-kanjis.dto';
 
 @Injectable()
 export class KanjiBooksService {
@@ -201,6 +202,121 @@ export class KanjiBooksService {
 
     return {
       message: '한자장이 성공적으로 삭제되었습니다.',
+    };
+  }
+
+  async moveKanjis(
+    sourceBookId: string,
+    userId: string,
+    moveKanjisDto: MoveKanjisDto,
+  ) {
+    const { target_book_id, kanji_ids } = moveKanjisDto;
+
+    // 소스 한자장과 타겟 한자장이 같은 경우
+    if (sourceBookId === target_book_id) {
+      throw new BadRequestException(
+        '소스 한자장과 타겟 한자장이 같을 수 없습니다.',
+      );
+    }
+
+    // 소스 한자장 존재 및 소유권 확인
+    const sourceKanjiBook = await this.prisma.kanjiBook.findUnique({
+      where: { id: sourceBookId },
+    });
+
+    if (!sourceKanjiBook) {
+      throw new NotFoundException('소스 한자장을 찾을 수 없습니다.');
+    }
+
+    if (sourceKanjiBook.userId !== userId) {
+      throw new ForbiddenException('소스 한자장에 접근할 권한이 없습니다.');
+    }
+
+    // 타겟 한자장 존재 및 소유권 확인
+    const targetKanjiBook = await this.prisma.kanjiBook.findUnique({
+      where: { id: target_book_id },
+    });
+
+    if (!targetKanjiBook) {
+      throw new NotFoundException('타겟 한자장을 찾을 수 없습니다.');
+    }
+
+    if (targetKanjiBook.userId !== userId) {
+      throw new ForbiddenException('타겟 한자장에 접근할 권한이 없습니다.');
+    }
+
+    // 한자들의 소유권 확인
+    const kanjis = await this.prisma.kanji.findMany({
+      where: {
+        id: { in: kanji_ids },
+      },
+    });
+
+    if (kanjis.length !== kanji_ids.length) {
+      throw new NotFoundException('일부 한자를 찾을 수 없습니다.');
+    }
+
+    for (const kanji of kanjis) {
+      if (kanji.userId !== userId) {
+        throw new ForbiddenException('일부 한자에 접근할 권한이 없습니다.');
+      }
+    }
+
+    // 한자들이 소스 한자장에 속하는지 확인
+    const existingRelations = await this.prisma.kanjiKanjiBook.findMany({
+      where: {
+        kanjiId: { in: kanji_ids },
+        kanjiBookId: sourceBookId,
+      },
+    });
+
+    if (existingRelations.length !== kanji_ids.length) {
+      throw new BadRequestException(
+        '일부 한자가 소스 한자장에 속하지 않습니다.',
+      );
+    }
+
+    // 타겟 한자장에 이미 존재하는 한자 확인 (중복 방지)
+    const targetRelations = await this.prisma.kanjiKanjiBook.findMany({
+      where: {
+        kanjiId: { in: kanji_ids },
+        kanjiBookId: target_book_id,
+      },
+    });
+
+    const existingInTarget = new Set(targetRelations.map((rel) => rel.kanjiId));
+
+    // 트랜잭션으로 원자성 보장
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 소스 한자장과의 관계 삭제
+      await tx.kanjiKanjiBook.deleteMany({
+        where: {
+          kanjiId: { in: kanji_ids },
+          kanjiBookId: sourceBookId,
+        },
+      });
+
+      // 타겟 한자장에 이미 없는 한자들만 관계 생성
+      const kanjiIdsToAdd = kanji_ids.filter(
+        (kanjiId) => !existingInTarget.has(kanjiId),
+      );
+
+      if (kanjiIdsToAdd.length > 0) {
+        await tx.kanjiKanjiBook.createMany({
+          data: kanjiIdsToAdd.map((kanjiId) => ({
+            kanjiId,
+            kanjiBookId: target_book_id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return kanji_ids.length;
+    });
+
+    return {
+      message: `${result}개의 한자가 성공적으로 이동되었습니다.`,
+      moved_count: result,
     };
   }
 }
