@@ -129,6 +129,28 @@ export class SchedulesService {
     const { review } = await this.getOrCreateReview(userId, currentDate);
     const reviewedWordBookIds = new Set(review.wordBookReviews);
 
+    // 통계: 전체 단어 수 및 learning 단어 수
+    const studyWordBookIds = studyWordBooks.map((book) => book.id);
+    let total = 0;
+    let learning = 0;
+
+    if (studyWordBookIds.length > 0) {
+      // 두 count 쿼리를 병렬로 실행
+      [total, learning] = await Promise.all([
+        this.prisma.word.count({
+          where: {
+            bookId: { in: studyWordBookIds },
+          },
+        }),
+        this.prisma.word.count({
+          where: {
+            status: 'learning',
+            bookId: { in: studyWordBookIds },
+          },
+        }),
+      ]);
+    }
+
     return {
       study: studyWordBooks.map((book) => ({
         id: book.id,
@@ -148,6 +170,10 @@ export class SchedulesService {
           created_at: book.createdAt.toISOString(),
           updated_at: book.updatedAt.toISOString(),
         })),
+      study_statistics: {
+        total,
+        learning,
+      },
     };
   }
 
@@ -190,6 +216,44 @@ export class SchedulesService {
     const { review } = await this.getOrCreateReview(userId, currentDate);
     const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
 
+    // 통계: 전체 한자 수 및 learning 한자 수
+    const studyKanjiBookIds = studyKanjiBooks.map((book) => book.id);
+    let total = 0;
+    let learning = 0;
+
+    if (studyKanjiBookIds.length > 0) {
+      // 필요한 필드만 선택하여 조회
+      const studyKanjiRelations = await this.prisma.kanjiKanjiBook.findMany({
+        where: {
+          kanjiBookId: { in: studyKanjiBookIds },
+        },
+        select: {
+          kanjiId: true,
+        },
+      });
+
+      const studyKanjiIds = studyKanjiRelations.map((rel) => rel.kanjiId);
+
+      if (studyKanjiIds.length > 0) {
+        // 두 count 쿼리를 병렬로 실행
+        [total, learning] = await Promise.all([
+          this.prisma.kanji.count({
+            where: {
+              id: { in: studyKanjiIds },
+              userId,
+            },
+          }),
+          this.prisma.kanji.count({
+            where: {
+              id: { in: studyKanjiIds },
+              userId,
+              status: 'learning',
+            },
+          }),
+        ]);
+      }
+    }
+
     return {
       study: studyKanjiBooks.map((book) => ({
         id: book.id,
@@ -209,6 +273,10 @@ export class SchedulesService {
           created_at: book.createdAt.toISOString(),
           updated_at: book.updatedAt.toISOString(),
         })),
+      study_statistics: {
+        total,
+        learning,
+      },
     };
   }
 
