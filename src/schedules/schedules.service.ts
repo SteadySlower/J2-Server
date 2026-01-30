@@ -95,11 +95,14 @@ export class SchedulesService {
     const studyDays = schedule.study_days;
     const reviewDays = schedule.review_days;
 
+    const review = await this.getOrCreateReview(userId, currentDate);
+    const reviewDate = review.reviewDate;
+
     const { start: studyStart, end: studyEnd } = this.getDateRange(
       studyDays,
-      currentDate,
+      reviewDate,
     );
-    const reviewDates = this.getReviewDates(reviewDays, currentDate);
+    const reviewDates = this.getReviewDates(reviewDays, reviewDate);
 
     const studyWordBooks = await this.prisma.wordBook.findMany({
       where: {
@@ -126,7 +129,6 @@ export class SchedulesService {
       },
     });
 
-    const review = await this.getOrCreateReview(userId, currentDate);
     const reviewedWordBookIds = new Set(review.wordBookReviews);
 
     // 통계: 전체 단어 수 및 learning 단어 수
@@ -183,11 +185,14 @@ export class SchedulesService {
     const studyDays = schedule.study_days;
     const reviewDays = schedule.review_days;
 
+    const review = await this.getOrCreateReview(userId, currentDate);
+    const reviewDate = review.reviewDate;
+
     const { start: studyStart, end: studyEnd } = this.getDateRange(
       studyDays,
-      currentDate,
+      reviewDate,
     );
-    const reviewDates = this.getReviewDates(reviewDays, currentDate);
+    const reviewDates = this.getReviewDates(reviewDays, reviewDate);
 
     const studyKanjiBooks = await this.prisma.kanjiBook.findMany({
       where: {
@@ -214,7 +219,6 @@ export class SchedulesService {
       },
     });
 
-    const review = await this.getOrCreateReview(userId, currentDate);
     const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
 
     // 통계: 전체 한자 수 및 learning 한자 수
