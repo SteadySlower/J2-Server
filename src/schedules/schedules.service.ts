@@ -173,6 +173,7 @@ export class SchedulesService {
       study_statistics: {
         total,
         learning,
+        review_date: review.reviewDate,
       },
     };
   }
@@ -276,6 +277,7 @@ export class SchedulesService {
       study_statistics: {
         total,
         learning,
+        review_date: review.reviewDate,
       },
     };
   }
