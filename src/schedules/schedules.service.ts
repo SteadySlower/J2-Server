@@ -126,7 +126,7 @@ export class SchedulesService {
       },
     });
 
-    const { review } = await this.getOrCreateReview(userId, currentDate);
+    const review = await this.getOrCreateReview(userId, currentDate);
     const reviewedWordBookIds = new Set(review.wordBookReviews);
 
     // 통계: 전체 단어 수 및 learning 단어 수
@@ -213,7 +213,7 @@ export class SchedulesService {
       },
     });
 
-    const { review } = await this.getOrCreateReview(userId, currentDate);
+    const review = await this.getOrCreateReview(userId, currentDate);
     const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
 
     // 통계: 전체 한자 수 및 learning 한자 수
@@ -304,9 +304,10 @@ export class SchedulesService {
   }
 
   /**
-   * Review를 가져오거나 생성하고, 날짜가 오늘이 아니면 배열을 비웁니다.
+   * Review를 가져오거나 생성합니다.
    * userId가 unique이므로 사용자당 최대 1개의 Review만 존재합니다.
    * 여러 곳에서 사용되므로 내부 함수로 분리했습니다.
+   * 날짜가 지난 경우에도 자동으로 리셋하지 않고, 사용자가 직접 리셋할 때까지 기존 데이터를 유지합니다.
    */
   private async getOrCreateReview(userId: string, currentDate: string) {
     // userId가 unique이므로 최대 1개만 존재
@@ -324,36 +325,11 @@ export class SchedulesService {
           kanjiBookReviews: [],
         },
       });
-      return {
-        review: newReview,
-        shouldReset: false,
-      };
+      return newReview;
     }
 
-    // Review가 있으면 날짜 확인 (문자열 직접 비교)
-    const shouldReset = existingReview.reviewDate !== currentDate;
-
-    if (shouldReset) {
-      // 날짜가 다르면 배열을 비우고 날짜 업데이트
-      const updatedReview = await this.prisma.review.update({
-        where: { userId },
-        data: {
-          reviewDate: currentDate,
-          wordBookReviews: [],
-          kanjiBookReviews: [],
-        },
-      });
-      return {
-        review: updatedReview,
-        shouldReset: true,
-      };
-    }
-
-    // 날짜가 같으면 기존 Review 그대로 사용
-    return {
-      review: existingReview,
-      shouldReset: false,
-    };
+    // Review가 있으면 기존 Review 그대로 사용 (날짜가 지나도 자동 리셋하지 않음)
+    return existingReview;
   }
 
   /**
@@ -400,7 +376,7 @@ export class SchedulesService {
     field: 'wordBookReviews' | 'kanjiBookReviews',
     currentDate: string,
   ) {
-    const { review } = await this.getOrCreateReview(userId, currentDate);
+    const review = await this.getOrCreateReview(userId, currentDate);
 
     const updatedReviews = [...review[field]];
     if (!updatedReviews.includes(bookId)) {
