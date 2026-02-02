@@ -90,7 +90,7 @@ export class SchedulesService {
     };
   }
 
-  async findWordBooksBySchedule(userId: string, currentDate: string) {
+  async findBooksBySchedule(userId: string, currentDate: string) {
     const schedule = await this.findOne(userId);
     const studyDays = schedule.study_days;
     const reviewDays = schedule.review_days;
@@ -104,67 +104,123 @@ export class SchedulesService {
     );
     const reviewDates = this.getReviewDates(reviewDays, reviewDate);
 
-    const studyWordBooks = await this.prisma.wordBook.findMany({
-      where: {
-        userId,
-        createdDate: {
-          gte: studyStart,
-          lte: studyEnd,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    const reviewWordBooks = await this.prisma.wordBook.findMany({
-      where: {
-        userId,
-        createdDate: {
-          in: reviewDates,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    const reviewedWordBookIds = new Set(review.wordBookReviews);
-
-    // 통계: 전체 단어 수 및 learning 단어 수
-    const studyWordBookIds = studyWordBooks.map((book) => book.id);
-    let total = 0;
-    let learning = 0;
-
-    if (studyWordBookIds.length > 0) {
-      // 두 count 쿼리를 병렬로 실행
-      [total, learning] = await Promise.all([
-        this.prisma.word.count({
+    // 단어장과 한자장을 병렬로 조회
+    const [studyWordBooks, reviewWordBooks, studyKanjiBooks, reviewKanjiBooks] =
+      await Promise.all([
+        this.prisma.wordBook.findMany({
           where: {
-            bookId: { in: studyWordBookIds },
+            userId,
+            createdDate: {
+              gte: studyStart,
+              lte: studyEnd,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         }),
-        this.prisma.word.count({
+        this.prisma.wordBook.findMany({
           where: {
+            userId,
+            createdDate: {
+              in: reviewDates,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.kanjiBook.findMany({
+          where: {
+            userId,
+            createdDate: {
+              gte: studyStart,
+              lte: studyEnd,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.kanjiBook.findMany({
+          where: {
+            userId,
+            createdDate: {
+              in: reviewDates,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
+
+    const reviewedWordBookIds = new Set(review.wordBookReviews);
+    const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
+
+    // 통계 계산
+    const studyWordBookIds = studyWordBooks.map((book) => book.id);
+    const studyKanjiBookIds = studyKanjiBooks.map((book) => book.id);
+
+    // 단어 통계와 한자 관계 조회를 병렬로 실행
+    const [wordStatsResult, studyKanjiRelationsResult] = await Promise.all([
+      studyWordBookIds.length > 0
+        ? Promise.all([
+            this.prisma.word.count({
+              where: {
+                bookId: { in: studyWordBookIds },
+              },
+            }),
+            this.prisma.word.count({
+              where: {
+                status: 'learning',
+                bookId: { in: studyWordBookIds },
+              },
+            }),
+          ])
+        : Promise.resolve([0, 0] as [number, number]),
+      studyKanjiBookIds.length > 0
+        ? this.prisma.kanjiKanjiBook.findMany({
+            where: {
+              kanjiBookId: { in: studyKanjiBookIds },
+            },
+            select: {
+              kanjiId: true,
+            },
+          })
+        : Promise.resolve([] as { kanjiId: string }[]),
+    ]);
+
+    const [wordTotal, wordLearning] = wordStatsResult;
+    const studyKanjiRelations: { kanjiId: string }[] =
+      studyKanjiRelationsResult;
+    let kanjiTotal = 0;
+    let kanjiLearning = 0;
+
+    // 한자 통계 계산
+    if (studyKanjiRelations.length > 0) {
+      const studyKanjiIds = studyKanjiRelations.map((rel) => rel.kanjiId);
+
+      [kanjiTotal, kanjiLearning] = await Promise.all([
+        this.prisma.kanji.count({
+          where: {
+            id: { in: studyKanjiIds },
+            userId,
+          },
+        }),
+        this.prisma.kanji.count({
+          where: {
+            id: { in: studyKanjiIds },
+            userId,
             status: 'learning',
-            bookId: { in: studyWordBookIds },
           },
         }),
       ]);
     }
 
     return {
-      study: studyWordBooks.map((book) => ({
-        id: book.id,
-        title: book.title,
-        status: book.status,
-        show_front: book.showFront,
-        created_at: book.createdAt.toISOString(),
-        updated_at: book.updatedAt.toISOString(),
-      })),
-      review: reviewWordBooks
-        .filter((book) => !reviewedWordBookIds.has(book.id))
-        .map((book) => ({
+      word_books: {
+        study: studyWordBooks.map((book) => ({
           id: book.id,
           title: book.title,
           status: book.status,
@@ -172,105 +228,24 @@ export class SchedulesService {
           created_at: book.createdAt.toISOString(),
           updated_at: book.updatedAt.toISOString(),
         })),
-      study_statistics: {
-        total,
-        learning,
-        review_date: review.reviewDate,
-      },
-    };
-  }
-
-  async findKanjiBooksBySchedule(userId: string, currentDate: string) {
-    const schedule = await this.findOne(userId);
-    const studyDays = schedule.study_days;
-    const reviewDays = schedule.review_days;
-
-    const review = await this.getOrCreateReview(userId, currentDate);
-    const reviewDate = review.reviewDate;
-
-    const { start: studyStart, end: studyEnd } = this.getDateRange(
-      studyDays,
-      reviewDate,
-    );
-    const reviewDates = this.getReviewDates(reviewDays, reviewDate);
-
-    const studyKanjiBooks = await this.prisma.kanjiBook.findMany({
-      where: {
-        userId,
-        createdDate: {
-          gte: studyStart,
-          lte: studyEnd,
+        review: reviewWordBooks
+          .filter((book) => !reviewedWordBookIds.has(book.id))
+          .map((book) => ({
+            id: book.id,
+            title: book.title,
+            status: book.status,
+            show_front: book.showFront,
+            created_at: book.createdAt.toISOString(),
+            updated_at: book.updatedAt.toISOString(),
+          })),
+        study_statistics: {
+          total: wordTotal,
+          learning: wordLearning,
+          review_date: review.reviewDate,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    const reviewKanjiBooks = await this.prisma.kanjiBook.findMany({
-      where: {
-        userId,
-        createdDate: {
-          in: reviewDates,
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    const reviewedKanjiBookIds = new Set(review.kanjiBookReviews);
-
-    // 통계: 전체 한자 수 및 learning 한자 수
-    const studyKanjiBookIds = studyKanjiBooks.map((book) => book.id);
-    let total = 0;
-    let learning = 0;
-
-    if (studyKanjiBookIds.length > 0) {
-      // 필요한 필드만 선택하여 조회
-      const studyKanjiRelations = await this.prisma.kanjiKanjiBook.findMany({
-        where: {
-          kanjiBookId: { in: studyKanjiBookIds },
-        },
-        select: {
-          kanjiId: true,
-        },
-      });
-
-      const studyKanjiIds = studyKanjiRelations.map((rel) => rel.kanjiId);
-
-      if (studyKanjiIds.length > 0) {
-        // 두 count 쿼리를 병렬로 실행
-        [total, learning] = await Promise.all([
-          this.prisma.kanji.count({
-            where: {
-              id: { in: studyKanjiIds },
-              userId,
-            },
-          }),
-          this.prisma.kanji.count({
-            where: {
-              id: { in: studyKanjiIds },
-              userId,
-              status: 'learning',
-            },
-          }),
-        ]);
-      }
-    }
-
-    return {
-      study: studyKanjiBooks.map((book) => ({
-        id: book.id,
-        title: book.title,
-        status: book.status,
-        show_front: book.showFront,
-        created_at: book.createdAt.toISOString(),
-        updated_at: book.updatedAt.toISOString(),
-      })),
-      review: reviewKanjiBooks
-        .filter((book) => !reviewedKanjiBookIds.has(book.id))
-        .map((book) => ({
+      kanji_books: {
+        study: studyKanjiBooks.map((book) => ({
           id: book.id,
           title: book.title,
           status: book.status,
@@ -278,10 +253,21 @@ export class SchedulesService {
           created_at: book.createdAt.toISOString(),
           updated_at: book.updatedAt.toISOString(),
         })),
-      study_statistics: {
-        total,
-        learning,
-        review_date: review.reviewDate,
+        review: reviewKanjiBooks
+          .filter((book) => !reviewedKanjiBookIds.has(book.id))
+          .map((book) => ({
+            id: book.id,
+            title: book.title,
+            status: book.status,
+            show_front: book.showFront,
+            created_at: book.createdAt.toISOString(),
+            updated_at: book.updatedAt.toISOString(),
+          })),
+        study_statistics: {
+          total: kanjiTotal,
+          learning: kanjiLearning,
+          review_date: review.reviewDate,
+        },
       },
     };
   }
@@ -317,25 +303,18 @@ export class SchedulesService {
    */
   private async getOrCreateReview(userId: string, currentDate: string) {
     // userId가 unique이므로 최대 1개만 존재
-    const existingReview = await this.prisma.review.findUnique({
+    // upsert를 사용하여 race condition 방지
+    const review = await this.prisma.review.upsert({
       where: { userId },
+      update: {}, // 기존이 있으면 업데이트 없이 그대로 반환
+      create: {
+        userId,
+        reviewDate: currentDate,
+        wordBookReviews: [],
+        kanjiBookReviews: [],
+      },
     });
-
-    if (!existingReview) {
-      // Review가 없으면 새로 생성
-      const newReview = await this.prisma.review.create({
-        data: {
-          userId,
-          reviewDate: currentDate,
-          wordBookReviews: [],
-          kanjiBookReviews: [],
-        },
-      });
-      return newReview;
-    }
-
-    // Review가 있으면 기존 Review 그대로 사용 (날짜가 지나도 자동 리셋하지 않음)
-    return existingReview;
+    return review;
   }
 
   /**

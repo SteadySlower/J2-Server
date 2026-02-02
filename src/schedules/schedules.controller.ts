@@ -32,23 +32,12 @@ export class SchedulesController {
     return this.schedulesService.findOne(user.id);
   }
 
-  @Get('word-books')
-  findWordBooksBySchedule(
+  @Get('books')
+  findBooksBySchedule(
     @CurrentUser() user: CurrentUserPayload,
     @Query() query: CurrentDateQueryDto,
   ) {
-    return this.schedulesService.findWordBooksBySchedule(
-      user.id,
-      query.current_date,
-    );
-  }
-
-  @Get('kanji-books')
-  findKanjiBooksBySchedule(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query() query: CurrentDateQueryDto,
-  ) {
-    return this.schedulesService.findKanjiBooksBySchedule(
+    return this.schedulesService.findBooksBySchedule(
       user.id,
       query.current_date,
     );
