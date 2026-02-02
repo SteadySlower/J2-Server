@@ -74,6 +74,7 @@ model WordBook {
 
   words Word[]
 
+  @@index([userId, createdDate])
   @@map("word_books")
 }
 
@@ -107,6 +108,7 @@ model KanjiBook {
 
   kanjis KanjiKanjiBook[]
 
+  @@index([userId, createdDate])
   @@map("kanji_books")
 }
 
