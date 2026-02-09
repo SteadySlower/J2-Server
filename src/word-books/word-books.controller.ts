@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
@@ -15,6 +16,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { CreateWordBookDto } from './dto/create-word-book.dto';
 import { UpdateWordBookDto } from './dto/update-word-book.dto';
 import { MoveWordsDto } from './dto/move-words.dto';
+import { FindWordsQueryDto } from './dto/find-words-query.dto';
 import { WordBooksService } from './word-books.service';
 
 @Controller('word-books')
@@ -31,8 +33,9 @@ export class WordBooksController {
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserPayload,
+    @Query() query: FindWordsQueryDto,
   ) {
-    return this.wordBooksService.findOne(id, user.id);
+    return this.wordBooksService.findOne(id, user.id, query.status);
   }
 
   @Post()

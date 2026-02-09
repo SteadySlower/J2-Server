@@ -24,11 +24,12 @@ export class WordBooksService {
     });
   }
 
-  async findOne(id: string, userId: string) {
+  async findOne(id: string, userId: string, status?: 'learning' | 'learned') {
     const wordBook = await this.prisma.wordBook.findUnique({
       where: { id },
       include: {
         words: {
+          where: status ? { status } : undefined,
           include: {
             kanjis: {
               include: {
