@@ -61,6 +61,7 @@ export class WordBooksService {
       updated_at: wordBook.updatedAt.toISOString(),
       words: wordBook.words.map((word) => ({
         id: word.id,
+        book_id: word.bookId,
         japanese: word.japanese,
         meaning: word.meaning,
         pronunciation: word.pronunciation,
