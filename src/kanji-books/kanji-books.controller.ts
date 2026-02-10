@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
@@ -15,6 +16,7 @@ import type { CurrentUserPayload } from '../auth/decorators/current-user.decorat
 import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
 import { UpdateKanjiBookDto } from './dto/update-kanji-book.dto';
 import { MoveKanjisDto } from './dto/move-kanjis.dto';
+import { FindKanjisQueryDto } from './dto/find-kanjis-query.dto';
 import { KanjiBooksService } from './kanji-books.service';
 
 @Controller('kanji-books')
@@ -31,8 +33,9 @@ export class KanjiBooksController {
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: CurrentUserPayload,
+    @Query() query: FindKanjisQueryDto,
   ) {
-    return this.kanjiBooksService.findOne(id, user.id);
+    return this.kanjiBooksService.findOne(id, user.id, query.status);
   }
 
   @Post()

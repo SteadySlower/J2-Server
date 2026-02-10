@@ -24,11 +24,18 @@ export class KanjiBooksService {
     });
   }
 
-  async findOne(id: string, userId: string) {
+  async findOne(id: string, userId: string, status?: 'learning' | 'learned') {
     const kanjiBook = await this.prisma.kanjiBook.findUnique({
       where: { id },
       include: {
         kanjis: {
+          where: status
+            ? {
+                kanji: {
+                  status,
+                },
+              }
+            : undefined,
           include: {
             kanji: true,
           },
