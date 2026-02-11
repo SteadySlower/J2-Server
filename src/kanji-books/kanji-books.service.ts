@@ -65,7 +65,6 @@ export class KanjiBooksService {
       updated_at: kanjiBook.updatedAt.toISOString(),
       kanjis: kanjiBook.kanjis.map((kanjiKanjiBook) => ({
         id: kanjiKanjiBook.kanji.id,
-        book_id: kanjiBook.id,
         character: kanjiKanjiBook.kanji.character,
         meaning: kanjiKanjiBook.kanji.meaning,
         on_reading: kanjiKanjiBook.kanji.onReading,
