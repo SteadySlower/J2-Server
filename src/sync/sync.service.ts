@@ -1,12 +1,16 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PushPayload } from './dto/push.dto';
 import { SyncDeletionService } from './sync-deletion.service';
+
+const CONFLICT_MESSAGE =
+  '동기화 충돌: 서버에 더 최신 데이터가 있습니다. pull 후 재시도해 주세요.';
 
 @Injectable()
 export class SyncService {
@@ -208,22 +212,38 @@ export class SyncService {
     return result;
   }
 
+  /**
+   * 클라이언트 변경분을 서버에 반영 (LWW).
+   * 409 Conflict 시: 클라이언트는 pull → merge → push 재시도.
+   */
   async push(userId: string, payload: PushPayload) {
     return await this.prisma.$transaction(async (tx) => {
       for (const p of payload.profiles?.created ?? []) {
-        await tx.profile.upsert({
+        const existing = await tx.profile.findUnique({
           where: { id: p.id },
-          update: {
-            name: p.name ?? undefined,
-            avatarUrl: p.avatar_url ?? undefined,
-          },
-          create: {
-            id: p.id,
-            userId,
-            name: p.name ?? undefined,
-            avatarUrl: p.avatar_url ?? undefined,
-          },
         });
+        if (existing) {
+          if (existing.userId !== userId)
+            throw new ForbiddenException('Access denied');
+          if (existing.updatedAt > new Date(p.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.profile.update({
+            where: { id: p.id },
+            data: {
+              name: p.name ?? undefined,
+              avatarUrl: p.avatar_url ?? undefined,
+            },
+          });
+        } else {
+          await tx.profile.create({
+            data: {
+              id: p.id,
+              userId,
+              name: p.name ?? undefined,
+              avatarUrl: p.avatar_url ?? undefined,
+            },
+          });
+        }
       }
       for (const p of payload.profiles?.updated ?? []) {
         const existing = await tx.profile.findUnique({
@@ -232,6 +252,8 @@ export class SyncService {
         if (!existing) throw new NotFoundException(`Profile ${p.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(p.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.profile.update({
           where: { id: p.id },
           data: {
@@ -242,19 +264,29 @@ export class SyncService {
       }
 
       for (const s of payload.schedules?.created ?? []) {
-        await tx.schedule.upsert({
+        const existing = await tx.schedule.findUnique({
           where: { userId },
-          update: {
-            studyDays: s.study_days,
-            reviewDays: s.review_days,
-          },
-          create: {
-            id: s.id,
-            userId,
-            studyDays: s.study_days,
-            reviewDays: s.review_days,
-          },
         });
+        if (existing) {
+          if (existing.updatedAt > new Date(s.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.schedule.update({
+            where: { userId },
+            data: {
+              studyDays: s.study_days,
+              reviewDays: s.review_days,
+            },
+          });
+        } else {
+          await tx.schedule.create({
+            data: {
+              id: s.id,
+              userId,
+              studyDays: s.study_days,
+              reviewDays: s.review_days,
+            },
+          });
+        }
       }
       for (const s of payload.schedules?.updated ?? []) {
         const existing = await tx.schedule.findUnique({
@@ -264,6 +296,8 @@ export class SyncService {
           throw new NotFoundException(`Schedule ${s.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(s.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.schedule.update({
           where: { id: s.id },
           data: {
@@ -274,21 +308,31 @@ export class SyncService {
       }
 
       for (const r of payload.reviews?.created ?? []) {
-        await tx.review.upsert({
+        const existing = await tx.review.findUnique({
           where: { userId },
-          update: {
-            reviewDate: r.review_date,
-            wordBookReviews: r.word_book_reviews,
-            kanjiBookReviews: r.kanji_book_reviews,
-          },
-          create: {
-            id: r.id,
-            userId,
-            reviewDate: r.review_date,
-            wordBookReviews: r.word_book_reviews,
-            kanjiBookReviews: r.kanji_book_reviews,
-          },
         });
+        if (existing) {
+          if (existing.updatedAt > new Date(r.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.review.update({
+            where: { userId },
+            data: {
+              reviewDate: r.review_date,
+              wordBookReviews: r.word_book_reviews,
+              kanjiBookReviews: r.kanji_book_reviews,
+            },
+          });
+        } else {
+          await tx.review.create({
+            data: {
+              id: r.id,
+              userId,
+              reviewDate: r.review_date,
+              wordBookReviews: r.word_book_reviews,
+              kanjiBookReviews: r.kanji_book_reviews,
+            },
+          });
+        }
       }
       for (const r of payload.reviews?.updated ?? []) {
         const existing = await tx.review.findUnique({
@@ -297,6 +341,8 @@ export class SyncService {
         if (!existing) throw new NotFoundException(`Review ${r.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(r.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.review.update({
           where: { id: r.id },
           data: {
@@ -315,23 +361,35 @@ export class SyncService {
         }
       }
       for (const wb of payload.word_books?.created ?? []) {
-        await tx.wordBook.upsert({
+        const existing = await tx.wordBook.findUnique({
           where: { id: wb.id },
-          update: {
-            title: wb.title,
-            status: wb.status,
-            showFront: wb.show_front,
-            createdDate: wb.created_date,
-          },
-          create: {
-            id: wb.id,
-            userId,
-            title: wb.title,
-            status: wb.status ?? 'studying',
-            showFront: wb.show_front ?? true,
-            createdDate: wb.created_date,
-          },
         });
+        if (existing) {
+          if (existing.userId !== userId)
+            throw new ForbiddenException('Access denied');
+          if (existing.updatedAt > new Date(wb.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.wordBook.update({
+            where: { id: wb.id },
+            data: {
+              title: wb.title,
+              status: wb.status,
+              showFront: wb.show_front,
+              createdDate: wb.created_date,
+            },
+          });
+        } else {
+          await tx.wordBook.create({
+            data: {
+              id: wb.id,
+              userId,
+              title: wb.title,
+              status: wb.status ?? 'studying',
+              showFront: wb.show_front ?? true,
+              createdDate: wb.created_date,
+            },
+          });
+        }
       }
       for (const wb of payload.word_books?.updated ?? []) {
         const existing = await tx.wordBook.findUnique({
@@ -341,6 +399,8 @@ export class SyncService {
           throw new NotFoundException(`WordBook ${wb.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(wb.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.wordBook.update({
           where: { id: wb.id },
           data: {
@@ -360,23 +420,35 @@ export class SyncService {
         }
       }
       for (const kb of payload.kanji_books?.created ?? []) {
-        await tx.kanjiBook.upsert({
+        const existing = await tx.kanjiBook.findUnique({
           where: { id: kb.id },
-          update: {
-            title: kb.title,
-            status: kb.status,
-            showFront: kb.show_front,
-            createdDate: kb.created_date,
-          },
-          create: {
-            id: kb.id,
-            userId,
-            title: kb.title,
-            status: kb.status ?? 'studying',
-            showFront: kb.show_front ?? true,
-            createdDate: kb.created_date,
-          },
         });
+        if (existing) {
+          if (existing.userId !== userId)
+            throw new ForbiddenException('Access denied');
+          if (existing.updatedAt > new Date(kb.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.kanjiBook.update({
+            where: { id: kb.id },
+            data: {
+              title: kb.title,
+              status: kb.status,
+              showFront: kb.show_front,
+              createdDate: kb.created_date,
+            },
+          });
+        } else {
+          await tx.kanjiBook.create({
+            data: {
+              id: kb.id,
+              userId,
+              title: kb.title,
+              status: kb.status ?? 'studying',
+              showFront: kb.show_front ?? true,
+              createdDate: kb.created_date,
+            },
+          });
+        }
       }
       for (const kb of payload.kanji_books?.updated ?? []) {
         const existing = await tx.kanjiBook.findUnique({
@@ -386,6 +458,8 @@ export class SyncService {
           throw new NotFoundException(`KanjiBook ${kb.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(kb.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.kanjiBook.update({
           where: { id: kb.id },
           data: {
@@ -405,24 +479,36 @@ export class SyncService {
         }
       }
       for (const k of payload.kanjis?.created ?? []) {
-        await tx.kanji.upsert({
+        const existing = await tx.kanji.findUnique({
           where: { id: k.id },
-          update: {
-            meaning: k.meaning,
-            onReading: k.on_reading ?? null,
-            kunReading: k.kun_reading ?? null,
-            status: k.status,
-          },
-          create: {
-            id: k.id,
-            userId,
-            character: k.character,
-            meaning: k.meaning,
-            onReading: k.on_reading ?? null,
-            kunReading: k.kun_reading ?? null,
-            status: k.status ?? 'learning',
-          },
         });
+        if (existing) {
+          if (existing.userId !== userId)
+            throw new ForbiddenException('Access denied');
+          if (existing.updatedAt > new Date(k.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.kanji.update({
+            where: { id: k.id },
+            data: {
+              meaning: k.meaning,
+              onReading: k.on_reading ?? null,
+              kunReading: k.kun_reading ?? null,
+              status: k.status,
+            },
+          });
+        } else {
+          await tx.kanji.create({
+            data: {
+              id: k.id,
+              userId,
+              character: k.character,
+              meaning: k.meaning,
+              onReading: k.on_reading ?? null,
+              kunReading: k.kun_reading ?? null,
+              status: k.status ?? 'learning',
+            },
+          });
+        }
       }
       for (const k of payload.kanjis?.updated ?? []) {
         const existing = await tx.kanji.findUnique({
@@ -431,6 +517,8 @@ export class SyncService {
         if (!existing) throw new NotFoundException(`Kanji ${k.id} not found`);
         if (existing.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(k.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.kanji.update({
           where: { id: k.id },
           data: {
@@ -460,30 +548,43 @@ export class SyncService {
           throw new NotFoundException(`WordBook ${w.book_id} not found`);
         if (book.userId !== userId)
           throw new ForbiddenException('Access denied');
-        const wordCount = await tx.word.count({
-          where: { bookId: w.book_id },
-        });
-        if (wordCount >= 300)
-          throw new BadRequestException(
-            '단어장에는 최대 300개의 단어만 추가할 수 있습니다.',
-          );
-        await tx.word.upsert({
+        const existingWord = await tx.word.findUnique({
           where: { id: w.id },
-          update: {
-            japanese: w.japanese,
-            meaning: w.meaning,
-            pronunciation: w.pronunciation ?? null,
-            status: w.status,
-          },
-          create: {
-            id: w.id,
-            bookId: w.book_id,
-            japanese: w.japanese,
-            meaning: w.meaning,
-            pronunciation: w.pronunciation ?? null,
-            status: w.status ?? 'learning',
-          },
+          include: { book: true },
         });
+        if (existingWord) {
+          if (existingWord.book.userId !== userId)
+            throw new ForbiddenException('Access denied');
+          if (existingWord.updatedAt > new Date(w.updated_at))
+            throw new ConflictException(CONFLICT_MESSAGE);
+          await tx.word.update({
+            where: { id: w.id },
+            data: {
+              japanese: w.japanese,
+              meaning: w.meaning,
+              pronunciation: w.pronunciation ?? null,
+              status: w.status,
+            },
+          });
+        } else {
+          const wordCount = await tx.word.count({
+            where: { bookId: w.book_id },
+          });
+          if (wordCount >= 300)
+            throw new BadRequestException(
+              '단어장에는 최대 300개의 단어만 추가할 수 있습니다.',
+            );
+          await tx.word.create({
+            data: {
+              id: w.id,
+              bookId: w.book_id,
+              japanese: w.japanese,
+              meaning: w.meaning,
+              pronunciation: w.pronunciation ?? null,
+              status: w.status ?? 'learning',
+            },
+          });
+        }
       }
       for (const w of payload.words?.updated ?? []) {
         const existing = await tx.word.findUnique({
@@ -493,6 +594,8 @@ export class SyncService {
         if (!existing) throw new NotFoundException(`Word ${w.id} not found`);
         if (existing.book.userId !== userId)
           throw new ForbiddenException('Access denied');
+        if (existing.updatedAt > new Date(w.updated_at))
+          throw new ConflictException(CONFLICT_MESSAGE);
         await tx.word.update({
           where: { id: w.id },
           data: {

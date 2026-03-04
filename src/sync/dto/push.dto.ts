@@ -9,7 +9,7 @@ const profileItemSchema = z.object({
   name: z.string().nullable().optional(),
   avatar_url: z.string().nullable().optional(),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const scheduleItemSchema = z.object({
@@ -17,7 +17,7 @@ const scheduleItemSchema = z.object({
   study_days: z.number().int().min(0),
   review_days: z.array(z.number().int().positive()),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const reviewItemSchema = z.object({
@@ -26,7 +26,7 @@ const reviewItemSchema = z.object({
   word_book_reviews: z.array(uuidSchema),
   kanji_book_reviews: z.array(uuidSchema),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const wordBookItemSchema = z.object({
@@ -39,7 +39,7 @@ const wordBookItemSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .refine((val) => isValidDateString(val)),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const wordItemSchema = z.object({
@@ -50,7 +50,7 @@ const wordItemSchema = z.object({
   pronunciation: z.string().nullable().optional(),
   status: z.enum(['learning', 'learned']).optional().default('learning'),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const kanjiBookItemSchema = z.object({
@@ -63,7 +63,7 @@ const kanjiBookItemSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .refine((val) => isValidDateString(val)),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const kanjiItemSchema = z.object({
@@ -77,7 +77,7 @@ const kanjiItemSchema = z.object({
   kun_reading: z.string().nullable().optional(),
   status: z.enum(['learning', 'learned']).optional().default('learning'),
   created_at: z.string().datetime().optional(),
-  updated_at: z.string().datetime().optional(),
+  updated_at: z.string().datetime(),
 });
 
 const wordKanjiItemSchema = z.object({
