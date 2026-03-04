@@ -14,6 +14,7 @@ import { DictionaryModule } from './dictionary/dictionary.module';
 import { DictionaryApiModule } from './dictionary-api/dictionary-api.module';
 import { AiModule } from './openAi/ai.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { SchedulesModule } from './schedules/schedules.module';
     DictionaryApiModule,
     AiModule,
     SchedulesModule,
+    SyncModule,
   ],
   controllers: [AppController],
   providers: [AppService],
