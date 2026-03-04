@@ -5,13 +5,17 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncDeletionService } from '../sync/sync-deletion.service';
 import { CreateKanjiBookDto } from './dto/create-kanji-book.dto';
 import { UpdateKanjiBookDto } from './dto/update-kanji-book.dto';
 import { MoveKanjisDto } from './dto/move-kanjis.dto';
 
 @Injectable()
 export class KanjiBooksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private syncDeletion: SyncDeletionService,
+  ) {}
 
   async findAll(userId: string) {
     return await this.prisma.kanjiBook.findMany({
@@ -176,13 +180,16 @@ export class KanjiBooksService {
       );
     }
 
-    await this.prisma.kanjiKanjiBook.delete({
-      where: {
-        kanjiId_kanjiBookId: {
-          kanjiId,
-          kanjiBookId: bookId,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.kanjiKanjiBook.delete({
+        where: {
+          kanjiId_kanjiBookId: {
+            kanjiId,
+            kanjiBookId: bookId,
+          },
         },
-      },
+      });
+      await this.syncDeletion.logKanjiKanjiBook(tx, userId, kanjiId, bookId);
     });
 
     return {
@@ -203,8 +210,9 @@ export class KanjiBooksService {
       throw new ForbiddenException('이 한자장에 접근할 권한이 없습니다.');
     }
 
-    await this.prisma.kanjiBook.delete({
-      where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.kanjiBook.delete({ where: { id } });
+      await this.syncDeletion.logKanjiBook(tx, userId, id);
     });
 
     return {
@@ -295,13 +303,20 @@ export class KanjiBooksService {
 
     // 트랜잭션으로 원자성 보장
     const result = await this.prisma.$transaction(async (tx) => {
-      // 소스 한자장과의 관계 삭제
       await tx.kanjiKanjiBook.deleteMany({
         where: {
           kanjiId: { in: kanji_ids },
           kanjiBookId: sourceBookId,
         },
       });
+      for (const kanjiId of kanji_ids) {
+        await this.syncDeletion.logKanjiKanjiBook(
+          tx,
+          userId,
+          kanjiId,
+          sourceBookId,
+        );
+      }
 
       // 타겟 한자장에 이미 없는 한자들만 관계 생성
       const kanjiIdsToAdd = kanji_ids.filter(

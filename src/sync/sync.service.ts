@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PushPayload } from './dto/push.dto';
+import { SyncDeletionService } from './sync-deletion.service';
 
 @Injectable()
 export class SyncService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private syncDeletion: SyncDeletionService,
+  ) {}
 
   async pull(userId: string, since: string) {
     const sinceDate = new Date(since);
@@ -24,6 +28,7 @@ export class SyncService {
       kanjis,
       wordKanjiRows,
       kanjiKanjiBookRows,
+      deletions,
     ] = await Promise.all([
       this.prisma.profile.findMany({
         where: { userId, updatedAt: { gt: sinceDate } },
@@ -62,7 +67,13 @@ export class SyncService {
           updatedAt: { gt: sinceDate },
         },
       }),
+      this.prisma.syncDeletion.findMany({
+        where: { userId, deletedAt: { gt: sinceDate } },
+        orderBy: { deletedAt: 'asc' },
+      }),
     ]);
+
+    const deleted = this.buildDeletedFromLog(deletions);
 
     return {
       profiles: profiles.map((p) => ({
@@ -143,7 +154,58 @@ export class SyncService {
         created_at: kkb.createdAt.toISOString(),
         updated_at: kkb.updatedAt.toISOString(),
       })),
+      deleted,
     };
+  }
+
+  private buildDeletedFromLog(
+    deletions: {
+      entityType: string;
+      entityId: string;
+      entityIdSecondary: string | null;
+    }[],
+  ) {
+    const result = {
+      word_books: [] as string[],
+      words: [] as string[],
+      kanji_books: [] as string[],
+      kanjis: [] as string[],
+      word_kanji: [] as { word_id: string; kanji_id: string }[],
+      kanji_kanji_book: [] as { kanji_id: string; kanji_book_id: string }[],
+    };
+    for (const d of deletions) {
+      switch (d.entityType) {
+        case 'word_book':
+          result.word_books.push(d.entityId);
+          break;
+        case 'word':
+          result.words.push(d.entityId);
+          break;
+        case 'kanji_book':
+          result.kanji_books.push(d.entityId);
+          break;
+        case 'kanji':
+          result.kanjis.push(d.entityId);
+          break;
+        case 'word_kanji':
+          if (d.entityIdSecondary) {
+            result.word_kanji.push({
+              word_id: d.entityId,
+              kanji_id: d.entityIdSecondary,
+            });
+          }
+          break;
+        case 'kanji_kanji_book':
+          if (d.entityIdSecondary) {
+            result.kanji_kanji_book.push({
+              kanji_id: d.entityId,
+              kanji_book_id: d.entityIdSecondary,
+            });
+          }
+          break;
+      }
+    }
+    return result;
   }
 
   async push(userId: string, payload: PushPayload) {
@@ -249,6 +311,7 @@ export class SyncService {
         const wb = await tx.wordBook.findUnique({ where: { id } });
         if (wb && wb.userId === userId) {
           await tx.wordBook.delete({ where: { id } });
+          await this.syncDeletion.logWordBook(tx, userId, id);
         }
       }
       for (const wb of payload.word_books?.created ?? []) {
@@ -293,6 +356,7 @@ export class SyncService {
         const kb = await tx.kanjiBook.findUnique({ where: { id } });
         if (kb && kb.userId === userId) {
           await tx.kanjiBook.delete({ where: { id } });
+          await this.syncDeletion.logKanjiBook(tx, userId, id);
         }
       }
       for (const kb of payload.kanji_books?.created ?? []) {
@@ -337,6 +401,7 @@ export class SyncService {
         const k = await tx.kanji.findUnique({ where: { id } });
         if (k && k.userId === userId) {
           await tx.kanji.delete({ where: { id } });
+          await this.syncDeletion.logKanji(tx, userId, id);
         }
       }
       for (const k of payload.kanjis?.created ?? []) {
@@ -384,6 +449,7 @@ export class SyncService {
         });
         if (w && w.book.userId === userId) {
           await tx.word.delete({ where: { id } });
+          await this.syncDeletion.logWord(tx, userId, id);
         }
       }
       for (const w of payload.words?.created ?? []) {
@@ -451,6 +517,12 @@ export class SyncService {
               kanjiId: wk.kanji_id,
             },
           });
+          await this.syncDeletion.logWordKanji(
+            tx,
+            userId,
+            wk.word_id,
+            wk.kanji_id,
+          );
         }
       }
       for (const wk of payload.word_kanji?.created ?? []) {
@@ -502,6 +574,12 @@ export class SyncService {
               kanjiBookId: kkb.kanji_book_id,
             },
           });
+          await this.syncDeletion.logKanjiKanjiBook(
+            tx,
+            userId,
+            kkb.kanji_id,
+            kkb.kanji_book_id,
+          );
         }
       }
       for (const kkb of payload.kanji_kanji_book?.created ?? []) {

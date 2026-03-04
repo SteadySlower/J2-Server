@@ -5,13 +5,17 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncDeletionService } from '../sync/sync-deletion.service';
 import { CreateWordBookDto } from './dto/create-word-book.dto';
 import { UpdateWordBookDto } from './dto/update-word-book.dto';
 import { MoveWordsDto } from './dto/move-words.dto';
 
 @Injectable()
 export class WordBooksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private syncDeletion: SyncDeletionService,
+  ) {}
 
   async findAll(userId: string) {
     return await this.prisma.wordBook.findMany({
@@ -153,8 +157,9 @@ export class WordBooksService {
       throw new ForbiddenException('이 단어장에 접근할 권한이 없습니다.');
     }
 
-    await this.prisma.wordBook.delete({
-      where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.wordBook.delete({ where: { id } });
+      await this.syncDeletion.logWordBook(tx, userId, id);
     });
 
     return {

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PrismaTransactionClient } from '../prisma/prisma.types';
+import { SyncDeletionService } from '../sync/sync-deletion.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { DictionaryService } from '../dictionary/dictionary.service';
@@ -16,6 +17,7 @@ export class WordsService {
   constructor(
     private prisma: PrismaService,
     private dictionaryService: DictionaryService,
+    private syncDeletion: SyncDeletionService,
   ) {}
 
   /**
@@ -374,6 +376,9 @@ export class WordsService {
                 kanjiId: { in: kanjiIdsToDelete },
               },
             });
+            for (const kanjiId of kanjiIdsToDelete) {
+              await this.syncDeletion.logWordKanji(tx, userId, id, kanjiId);
+            }
           }
 
           // 추가할 관계가 있으면 생성
@@ -442,8 +447,9 @@ export class WordsService {
     // 단어 존재 및 소유권 확인 (단어장을 통해)
     await this.findWordWithOwnershipCheck(id, userId);
 
-    await this.prisma.word.delete({
-      where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.word.delete({ where: { id } });
+      await this.syncDeletion.logWord(tx, userId, id);
     });
 
     return {

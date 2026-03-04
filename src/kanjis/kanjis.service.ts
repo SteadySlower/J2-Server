@@ -5,12 +5,16 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncDeletionService } from '../sync/sync-deletion.service';
 import { CreateKanjiDto } from './dto/create-kanji.dto';
 import { UpdateKanjiDto } from './dto/update-kanji.dto';
 
 @Injectable()
 export class KanjisService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private syncDeletion: SyncDeletionService,
+  ) {}
 
   async findAll(userId: string) {
     const kanjis = await this.prisma.kanji.findMany({
@@ -334,8 +338,9 @@ export class KanjisService {
     }
 
     try {
-      await this.prisma.kanji.delete({
-        where: { id },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.kanji.delete({ where: { id } });
+        await this.syncDeletion.logKanji(tx, userId, id);
       });
     } catch (error: unknown) {
       // Prisma foreign key constraint violation (P2003)
