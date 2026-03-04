@@ -133,8 +133,10 @@ model Kanji {
 
 // Word-Kanji Relationship
 model WordKanji {
-  wordId  String @map("word_id") @db.Uuid
-  kanjiId String @map("kanji_id") @db.Uuid
+  wordId    String   @map("word_id") @db.Uuid
+  kanjiId   String   @map("kanji_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   word  Word  @relation(fields: [wordId], references: [id], onDelete: Cascade)
   kanji Kanji @relation(fields: [kanjiId], references: [id], onDelete: Restrict)
@@ -146,8 +148,10 @@ model WordKanji {
 
 // Kanji-KanjiBook Relationship
 model KanjiKanjiBook {
-  kanjiId     String @map("kanji_id") @db.Uuid
-  kanjiBookId String @map("kanji_book_id") @db.Uuid
+  kanjiId     String   @map("kanji_id") @db.Uuid
+  kanjiBookId String   @map("kanji_book_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   kanji     Kanji     @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
   kanjiBook KanjiBook @relation(fields: [kanjiBookId], references: [id], onDelete: Cascade)
