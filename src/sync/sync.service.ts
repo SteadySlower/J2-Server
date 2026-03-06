@@ -19,8 +19,21 @@ export class SyncService {
     private syncDeletion: SyncDeletionService,
   ) {}
 
-  async pull(userId: string, since: string) {
+  async pull(
+    userId: string,
+    since: string,
+    limit: number = 1000,
+    cursorStr?: string,
+  ) {
     const sinceDate = new Date(since);
+    const cursor = cursorStr
+      ? (JSON.parse(cursorStr) as Record<string, string>)
+      : {};
+
+    const getSince = (key: string) =>
+      cursor[key] ? new Date(cursor[key]) : sinceDate;
+
+    const take = limit + 1;
 
     const [
       profiles,
@@ -35,41 +48,59 @@ export class SyncService {
       deletions,
     ] = await Promise.all([
       this.prisma.profile.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('profiles') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.schedule.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('schedules') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.review.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('reviews') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.wordBook.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('word_books') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.word.findMany({
         where: {
           book: { userId },
-          updatedAt: { gt: sinceDate },
+          updatedAt: { gt: getSince('words') },
         },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.kanjiBook.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('kanji_books') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.kanji.findMany({
-        where: { userId, updatedAt: { gt: sinceDate } },
+        where: { userId, updatedAt: { gt: getSince('kanjis') } },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.wordKanji.findMany({
         where: {
           word: { book: { userId } },
-          updatedAt: { gt: sinceDate },
+          updatedAt: { gt: getSince('word_kanji') },
         },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.kanjiKanjiBook.findMany({
         where: {
           kanji: { userId },
           kanjiBook: { userId },
-          updatedAt: { gt: sinceDate },
+          updatedAt: { gt: getSince('kanji_kanji_book') },
         },
+        orderBy: { updatedAt: 'asc' },
+        take,
       }),
       this.prisma.syncDeletion.findMany({
         where: { userId, deletedAt: { gt: sinceDate } },
@@ -77,10 +108,42 @@ export class SyncService {
       }),
     ]);
 
+    const nextCursor: Record<string, string> = {};
+    if (profiles.length > limit) {
+      nextCursor.profiles = profiles[limit - 1].updatedAt.toISOString();
+    }
+    if (schedules.length > limit) {
+      nextCursor.schedules = schedules[limit - 1].updatedAt.toISOString();
+    }
+    if (reviews.length > limit) {
+      nextCursor.reviews = reviews[limit - 1].updatedAt.toISOString();
+    }
+    if (wordBooks.length > limit) {
+      nextCursor.word_books = wordBooks[limit - 1].updatedAt.toISOString();
+    }
+    if (words.length > limit) {
+      nextCursor.words = words[limit - 1].updatedAt.toISOString();
+    }
+    if (kanjiBooks.length > limit) {
+      nextCursor.kanji_books = kanjiBooks[limit - 1].updatedAt.toISOString();
+    }
+    if (kanjis.length > limit) {
+      nextCursor.kanjis = kanjis[limit - 1].updatedAt.toISOString();
+    }
+    if (wordKanjiRows.length > limit) {
+      nextCursor.word_kanji = wordKanjiRows[limit - 1].updatedAt.toISOString();
+    }
+    if (kanjiKanjiBookRows.length > limit) {
+      nextCursor.kanji_kanji_book =
+        kanjiKanjiBookRows[limit - 1].updatedAt.toISOString();
+    }
+    const hasMore = Object.keys(nextCursor).length > 0;
+
+    const toReturn = <T>(arr: T[], max: number): T[] => arr.slice(0, max);
     const deleted = this.buildDeletedFromLog(deletions);
 
     return {
-      profiles: profiles.map((p) => ({
+      profiles: toReturn(profiles, limit).map((p) => ({
         id: p.id,
         user_id: p.userId,
         name: p.name,
@@ -88,7 +151,7 @@ export class SyncService {
         created_at: p.createdAt.toISOString(),
         updated_at: p.updatedAt.toISOString(),
       })),
-      schedules: schedules.map((s) => ({
+      schedules: toReturn(schedules, limit).map((s) => ({
         id: s.id,
         user_id: s.userId,
         study_days: s.studyDays,
@@ -96,7 +159,7 @@ export class SyncService {
         created_at: s.createdAt.toISOString(),
         updated_at: s.updatedAt.toISOString(),
       })),
-      reviews: reviews.map((r) => ({
+      reviews: toReturn(reviews, limit).map((r) => ({
         id: r.id,
         user_id: r.userId,
         review_date: r.reviewDate,
@@ -105,7 +168,7 @@ export class SyncService {
         created_at: r.createdAt.toISOString(),
         updated_at: r.updatedAt.toISOString(),
       })),
-      word_books: wordBooks.map((wb) => ({
+      word_books: toReturn(wordBooks, limit).map((wb) => ({
         id: wb.id,
         user_id: wb.userId,
         title: wb.title,
@@ -115,7 +178,7 @@ export class SyncService {
         created_at: wb.createdAt.toISOString(),
         updated_at: wb.updatedAt.toISOString(),
       })),
-      words: words.map((w) => ({
+      words: toReturn(words, limit).map((w) => ({
         id: w.id,
         book_id: w.bookId,
         japanese: w.japanese,
@@ -125,7 +188,7 @@ export class SyncService {
         created_at: w.createdAt.toISOString(),
         updated_at: w.updatedAt.toISOString(),
       })),
-      kanji_books: kanjiBooks.map((kb) => ({
+      kanji_books: toReturn(kanjiBooks, limit).map((kb) => ({
         id: kb.id,
         user_id: kb.userId,
         title: kb.title,
@@ -135,7 +198,7 @@ export class SyncService {
         created_at: kb.createdAt.toISOString(),
         updated_at: kb.updatedAt.toISOString(),
       })),
-      kanjis: kanjis.map((k) => ({
+      kanjis: toReturn(kanjis, limit).map((k) => ({
         id: k.id,
         user_id: k.userId,
         character: k.character,
@@ -146,19 +209,21 @@ export class SyncService {
         created_at: k.createdAt.toISOString(),
         updated_at: k.updatedAt.toISOString(),
       })),
-      word_kanji: wordKanjiRows.map((wk) => ({
+      word_kanji: toReturn(wordKanjiRows, limit).map((wk) => ({
         word_id: wk.wordId,
         kanji_id: wk.kanjiId,
         created_at: wk.createdAt.toISOString(),
         updated_at: wk.updatedAt.toISOString(),
       })),
-      kanji_kanji_book: kanjiKanjiBookRows.map((kkb) => ({
+      kanji_kanji_book: toReturn(kanjiKanjiBookRows, limit).map((kkb) => ({
         kanji_id: kkb.kanjiId,
         kanji_book_id: kkb.kanjiBookId,
         created_at: kkb.createdAt.toISOString(),
         updated_at: kkb.updatedAt.toISOString(),
       })),
       deleted,
+      has_more: hasMore,
+      next_cursor: hasMore ? nextCursor : undefined,
     };
   }
 
@@ -636,26 +701,31 @@ export class SyncService {
         const kanji = await tx.kanji.findUnique({
           where: { id: wk.kanji_id },
         });
-        if (
-          word &&
-          word.book.userId === userId &&
-          kanji &&
-          kanji.userId === userId
-        ) {
-          await tx.wordKanji.upsert({
-            where: {
-              wordId_kanjiId: {
-                wordId: wk.word_id,
-                kanjiId: wk.kanji_id,
-              },
-            },
-            update: {},
-            create: {
+        if (!word)
+          throw new BadRequestException(`Word ${wk.word_id} not found`);
+        if (word.book.userId !== userId)
+          throw new BadRequestException(
+            `Word ${wk.word_id}: access denied (not owned by user)`,
+          );
+        if (!kanji)
+          throw new BadRequestException(`Kanji ${wk.kanji_id} not found`);
+        if (kanji.userId !== userId)
+          throw new BadRequestException(
+            `Kanji ${wk.kanji_id}: access denied (not owned by user)`,
+          );
+        await tx.wordKanji.upsert({
+          where: {
+            wordId_kanjiId: {
               wordId: wk.word_id,
               kanjiId: wk.kanji_id,
             },
-          });
-        }
+          },
+          update: {},
+          create: {
+            wordId: wk.word_id,
+            kanjiId: wk.kanji_id,
+          },
+        });
       }
 
       for (const kkb of payload.kanji_kanji_book?.deleted ?? []) {
@@ -692,26 +762,33 @@ export class SyncService {
         const book = await tx.kanjiBook.findUnique({
           where: { id: kkb.kanji_book_id },
         });
-        if (
-          kanji &&
-          kanji.userId === userId &&
-          book &&
-          book.userId === userId
-        ) {
-          await tx.kanjiKanjiBook.upsert({
-            where: {
-              kanjiId_kanjiBookId: {
-                kanjiId: kkb.kanji_id,
-                kanjiBookId: kkb.kanji_book_id,
-              },
-            },
-            update: {},
-            create: {
+        if (!kanji)
+          throw new BadRequestException(`Kanji ${kkb.kanji_id} not found`);
+        if (kanji.userId !== userId)
+          throw new BadRequestException(
+            `Kanji ${kkb.kanji_id}: access denied (not owned by user)`,
+          );
+        if (!book)
+          throw new BadRequestException(
+            `KanjiBook ${kkb.kanji_book_id} not found`,
+          );
+        if (book.userId !== userId)
+          throw new BadRequestException(
+            `KanjiBook ${kkb.kanji_book_id}: access denied (not owned by user)`,
+          );
+        await tx.kanjiKanjiBook.upsert({
+          where: {
+            kanjiId_kanjiBookId: {
               kanjiId: kkb.kanji_id,
               kanjiBookId: kkb.kanji_book_id,
             },
-          });
-        }
+          },
+          update: {},
+          create: {
+            kanjiId: kkb.kanji_id,
+            kanjiBookId: kkb.kanji_book_id,
+          },
+        });
       }
 
       return { ok: true };

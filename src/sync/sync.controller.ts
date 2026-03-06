@@ -13,7 +13,12 @@ export class SyncController {
 
   @Get('pull')
   pull(@CurrentUser() user: CurrentUserPayload, @Query() query: PullQueryDto) {
-    return this.syncService.pull(user.id, query.since);
+    return this.syncService.pull(
+      user.id,
+      query.since,
+      query.limit,
+      query.cursor,
+    );
   }
 
   @Post('push')
