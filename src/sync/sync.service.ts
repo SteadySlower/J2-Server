@@ -282,6 +282,7 @@ export class SyncService {
    * 409 Conflict 시: 클라이언트는 pull → merge → push 재시도.
    */
   async push(userId: string, payload: PushPayload) {
+    const kanjiIdMap: Record<string, string> = {};
     return await this.prisma.$transaction(async (tx) => {
       for (const p of payload.profiles?.created ?? []) {
         const existing = await tx.profile.findUnique({
@@ -544,23 +545,22 @@ export class SyncService {
         }
       }
       for (const k of payload.kanjis?.created ?? []) {
-        const existing = await tx.kanji.findUnique({
-          where: { id: k.id },
+        const existingByChar = await tx.kanji.findUnique({
+          where: { userId_character: { userId, character: k.character } },
         });
-        if (existing) {
-          if (existing.userId !== userId)
-            throw new ForbiddenException('Access denied');
-          if (existing.updatedAt > new Date(k.updated_at))
-            throw new ConflictException(CONFLICT_MESSAGE);
-          await tx.kanji.update({
-            where: { id: k.id },
-            data: {
-              meaning: k.meaning,
-              onReading: k.on_reading ?? null,
-              kunReading: k.kun_reading ?? null,
-              status: k.status,
-            },
-          });
+        if (existingByChar) {
+          kanjiIdMap[k.id] = existingByChar.id;
+          if (new Date(k.updated_at) > existingByChar.updatedAt) {
+            await tx.kanji.update({
+              where: { id: existingByChar.id },
+              data: {
+                meaning: k.meaning,
+                onReading: k.on_reading ?? null,
+                kunReading: k.kun_reading ?? null,
+                status: k.status,
+              },
+            });
+          }
         } else {
           await tx.kanji.create({
             data: {
@@ -673,7 +673,10 @@ export class SyncService {
         });
       }
 
+      const resolveKanjiId = (clientId: string) =>
+        kanjiIdMap[clientId] ?? clientId;
       for (const wk of payload.word_kanji?.deleted ?? []) {
+        const kanjiId = resolveKanjiId(wk.kanji_id);
         const w = await tx.word.findUnique({
           where: { id: wk.word_id },
           include: { book: true },
@@ -682,24 +685,20 @@ export class SyncService {
           await tx.wordKanji.deleteMany({
             where: {
               wordId: wk.word_id,
-              kanjiId: wk.kanji_id,
+              kanjiId,
             },
           });
-          await this.syncDeletion.logWordKanji(
-            tx,
-            userId,
-            wk.word_id,
-            wk.kanji_id,
-          );
+          await this.syncDeletion.logWordKanji(tx, userId, wk.word_id, kanjiId);
         }
       }
       for (const wk of payload.word_kanji?.created ?? []) {
+        const kanjiId = resolveKanjiId(wk.kanji_id);
         const word = await tx.word.findUnique({
           where: { id: wk.word_id },
           include: { book: true },
         });
         const kanji = await tx.kanji.findUnique({
-          where: { id: wk.kanji_id },
+          where: { id: kanjiId },
         });
         if (!word)
           throw new BadRequestException(`Word ${wk.word_id} not found`);
@@ -717,20 +716,21 @@ export class SyncService {
           where: {
             wordId_kanjiId: {
               wordId: wk.word_id,
-              kanjiId: wk.kanji_id,
+              kanjiId,
             },
           },
           update: {},
           create: {
             wordId: wk.word_id,
-            kanjiId: wk.kanji_id,
+            kanjiId,
           },
         });
       }
 
       for (const kkb of payload.kanji_kanji_book?.deleted ?? []) {
+        const kanjiId = resolveKanjiId(kkb.kanji_id);
         const kanji = await tx.kanji.findUnique({
-          where: { id: kkb.kanji_id },
+          where: { id: kanjiId },
         });
         const book = await tx.kanjiBook.findUnique({
           where: { id: kkb.kanji_book_id },
@@ -743,21 +743,22 @@ export class SyncService {
         ) {
           await tx.kanjiKanjiBook.deleteMany({
             where: {
-              kanjiId: kkb.kanji_id,
+              kanjiId,
               kanjiBookId: kkb.kanji_book_id,
             },
           });
           await this.syncDeletion.logKanjiKanjiBook(
             tx,
             userId,
-            kkb.kanji_id,
+            kanjiId,
             kkb.kanji_book_id,
           );
         }
       }
       for (const kkb of payload.kanji_kanji_book?.created ?? []) {
+        const kanjiId = resolveKanjiId(kkb.kanji_id);
         const kanji = await tx.kanji.findUnique({
-          where: { id: kkb.kanji_id },
+          where: { id: kanjiId },
         });
         const book = await tx.kanjiBook.findUnique({
           where: { id: kkb.kanji_book_id },
@@ -779,19 +780,21 @@ export class SyncService {
         await tx.kanjiKanjiBook.upsert({
           where: {
             kanjiId_kanjiBookId: {
-              kanjiId: kkb.kanji_id,
+              kanjiId,
               kanjiBookId: kkb.kanji_book_id,
             },
           },
           update: {},
           create: {
-            kanjiId: kkb.kanji_id,
+            kanjiId,
             kanjiBookId: kkb.kanji_book_id,
           },
         });
       }
 
-      return { ok: true };
+      const idMappings =
+        Object.keys(kanjiIdMap).length > 0 ? { kanjis: kanjiIdMap } : undefined;
+      return { ok: true, id_mappings: idMappings };
     });
   }
 }
