@@ -329,7 +329,10 @@ export class SyncService {
 
   /**
    * 클라이언트 변경분을 서버에 반영 (LWW).
-   * 409 Conflict 시: 클라이언트는 pull → merge → push 재시도.
+   * - 409 Conflict: 클라이언트는 pull → merge → push 재시도.
+   * - 404 NotFound (예: WordBook/Word not found): 참조 대상이 다른 기기에서 삭제됨.
+   *   클라이언트는 pull → merge → 변경분 재계산(삭제된 참조 제외) → push 재시도.
+   *   docs/db-sync 관련 TODO.md 섹션 5 참고.
    */
   async push(userId: string, payload: PushPayload) {
     this.validatePayloadConsistency(payload);
@@ -712,6 +715,15 @@ export class SyncService {
           throw new ForbiddenException('Access denied');
         if (existing.updatedAt > new Date(w.updated_at))
           throw new ConflictException(CONFLICT_MESSAGE);
+        const book = await tx.wordBook.findUnique({
+          where: { id: w.book_id },
+        });
+        if (!book)
+          throw new NotFoundException(
+            `WordBook ${w.book_id} not found (다른 기기에서 삭제됐을 수 있음. 클라이언트: pull → merge → push 재시도)`,
+          );
+        if (book.userId !== userId)
+          throw new ForbiddenException('Access denied');
         await tx.word.update({
           where: { id: w.id },
           data: {
