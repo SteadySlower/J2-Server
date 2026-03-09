@@ -279,9 +279,59 @@ export class SyncService {
 
   /**
    * deleted 부모와 created/updated 자식 충돌 검증.
+   * created·updated id 중복 검증.
    * 모순 payload 시 400 반환.
    */
   private validatePayloadConsistency(payload: PushPayload): void {
+    const checkCreatedUpdatedOverlap = (
+      created: { id: string }[],
+      updated: { id: string }[],
+      entityName: string,
+    ) => {
+      const createdIds = new Set(created.map((x) => x.id));
+      const overlap = updated.filter((x) => createdIds.has(x.id));
+      if (overlap.length > 0) {
+        throw new BadRequestException(
+          `모순: ${entityName}의 created와 updated에 동일 id가 중복됨: ${overlap.map((x) => x.id).join(', ')}`,
+        );
+      }
+    };
+    checkCreatedUpdatedOverlap(
+      payload.profiles?.created ?? [],
+      payload.profiles?.updated ?? [],
+      'profiles',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.schedules?.created ?? [],
+      payload.schedules?.updated ?? [],
+      'schedules',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.reviews?.created ?? [],
+      payload.reviews?.updated ?? [],
+      'reviews',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.word_books?.created ?? [],
+      payload.word_books?.updated ?? [],
+      'word_books',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.words?.created ?? [],
+      payload.words?.updated ?? [],
+      'words',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.kanji_books?.created ?? [],
+      payload.kanji_books?.updated ?? [],
+      'kanji_books',
+    );
+    checkCreatedUpdatedOverlap(
+      payload.kanjis?.created ?? [],
+      payload.kanjis?.updated ?? [],
+      'kanjis',
+    );
+
     const wbDeleted = new Set(payload.word_books?.deleted ?? []);
     const wDeleted = new Set(payload.words?.deleted ?? []);
     const kbDeleted = new Set(payload.kanji_books?.deleted ?? []);
