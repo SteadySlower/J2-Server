@@ -9,12 +9,18 @@ const cursorSchema = z
       if (!val) return true;
       try {
         const obj = JSON.parse(val) as unknown;
-        return typeof obj === 'object' && obj !== null;
+        if (typeof obj !== 'object' || obj === null) return false;
+        return Object.values(obj).every(
+          (v) => typeof v === 'string' && !isNaN(Date.parse(v)),
+        );
       } catch {
         return false;
       }
     },
-    { message: 'cursor는 유효한 JSON 객체 문자열이어야 합니다.' },
+    {
+      message:
+        'cursor는 유효한 JSON 객체이며, 각 값은 ISO 8601 날짜/시간 형식이어야 합니다.',
+    },
   );
 
 export const pullQuerySchema = z.object({
